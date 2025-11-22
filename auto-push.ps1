@@ -78,6 +78,7 @@ if ($LASTEXITCODE -eq 0) {
 } else {
     Write-Host "Ошибка при отправке на GitHub. Возможно, требуется аутентификация." -ForegroundColor Red
     Write-Host "Попробуйте выполнить push через Git Desktop" -ForegroundColor Yellow
+    Write-Host "Или проверьте, что токен имеет права 'repo' на https://github.com/settings/tokens" -ForegroundColor Yellow
     exit 1
 }
 
