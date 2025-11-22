@@ -1,0 +1,257 @@
+body { 
+    margin: 0; 
+    overflow: hidden; 
+    background-color: #5c4033; 
+    background-image: 
+        radial-gradient(circle at center, rgba(0,0,0,0) 20%, rgba(0,0,0,0.7) 100%),
+        repeating-linear-gradient(
+            0deg,
+            transparent 0px,
+            transparent 48px, 
+            rgba(0,0,0,0.3) 49px,
+            rgba(0,0,0,0.3) 50px
+        );
+    background-attachment: fixed;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+    font-family: 'Segoe UI', sans-serif; 
+}
+canvas { display: block; }
+
+/* Экраны */
+.screen {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+}
+
+#gameScreen {
+    z-index: 0;
+}
+
+/* Меню */
+.menu-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    color: white;
+    text-align: center;
+}
+
+.menu-container h1 {
+    font-size: 48px;
+    margin-bottom: 40px;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+}
+
+.menu-buttons {
+    display: flex;
+    gap: 40px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.menu-section {
+    background: rgba(0, 0, 0, 0.7);
+    padding: 30px;
+    border-radius: 15px;
+    min-width: 300px;
+}
+
+.menu-section h2 {
+    margin-top: 0;
+    margin-bottom: 20px;
+    font-size: 24px;
+}
+
+.menu-section input {
+    width: 100%;
+    padding: 12px;
+    margin-bottom: 15px;
+    border: 2px solid #555;
+    border-radius: 5px;
+    font-size: 16px;
+    background: rgba(255,255,255,0.9);
+    box-sizing: border-box;
+}
+
+.menu-section input:focus {
+    outline: none;
+    border-color: #4db8ff;
+}
+
+/* Комната */
+.room-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    color: white;
+    text-align: center;
+    padding: 20px;
+}
+
+.room-container h2 {
+    font-size: 32px;
+    margin-bottom: 20px;
+}
+
+.status {
+    font-size: 18px;
+    margin-bottom: 30px;
+    padding: 10px 20px;
+    background: rgba(0,0,0,0.5);
+    border-radius: 10px;
+}
+
+.players-section {
+    background: rgba(0, 0, 0, 0.7);
+    padding: 20px;
+    border-radius: 15px;
+    min-width: 300px;
+    margin-bottom: 20px;
+}
+
+.players-section h3 {
+    margin-top: 0;
+}
+
+.players-section ul {
+    list-style: none;
+    padding: 0;
+    text-align: left;
+}
+
+.players-section li {
+    padding: 10px;
+    margin: 5px 0;
+    background: rgba(255,255,255,0.1);
+    border-radius: 5px;
+}
+
+.room-buttons {
+    display: flex;
+    gap: 15px;
+}
+
+/* Кнопки */
+.btn {
+    padding: 12px 24px;
+    color: white;
+    border-radius: 8px;
+    font-weight: bold;
+    cursor: pointer;
+    border: none;
+    font-size: 16px;
+    transition: transform 0.1s, background 0.2s;
+}
+
+.btn:hover {
+    transform: scale(1.05);
+}
+
+.btn:active {
+    transform: scale(0.95);
+}
+
+.btn-primary {
+    background-color: #3498db;
+}
+
+.btn-primary:hover {
+    background-color: #5dade2;
+}
+
+.btn-success {
+    background-color: #27ae60;
+}
+
+.btn-success:hover {
+    background-color: #2ecc71;
+}
+
+.btn-danger {
+    background-color: #e74c3c;
+}
+
+.btn-danger:hover {
+    background-color: #ec7063;
+}
+
+/* Игровой интерфейс */
+#instructions {
+    position: absolute;
+    top: 0; left: 0; width: 100%; text-align: center; color: #fff;
+    font-size: 14px; text-shadow: 1px 1px 3px #000; z-index: 10;
+    background: rgba(0, 0, 0, 0.7); padding: 10px 0;
+    border-bottom: 1px solid #777;
+    padding-right: 60px;
+}
+
+#costumeBtn {
+    position: absolute;
+    top: 10px; right: 10px;
+    width: 60px; height: 60px;
+    background: white; border-radius: 50%;
+    font-size: 35px; text-align: center; line-height: 65px;
+    cursor: pointer; z-index: 20;
+    border: 3px solid #333;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+    transition: transform 0.1s;
+}
+#costumeBtn:active { transform: scale(0.95); }
+
+#achievementBox {
+    position: absolute; top: -150px; left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(to bottom, #FFD700, #FFA500);
+    border: 4px solid #fff; border-radius: 15px;
+    padding: 15px 30px; color: #8B4513;
+    font-size: 24px; font-weight: bold;
+    box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+    z-index: 100; transition: top 0.5s ease-out;
+    text-align: center; min-width: 250px;
+}
+.ach-icon { font-size: 30px; display: block; margin-bottom: 5px; }
+
+.legend-container {
+    display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 5px;
+}
+.legend { 
+    font-weight: 600; cursor: pointer; padding: 4px 8px; border-radius: 4px; 
+    transition: background 0.2s; border: 1px solid transparent;
+    pointer-events: auto; 
+}
+.legend:hover { background: rgba(255,255,255,0.1); border-color: #777; }
+.legend:active { transform: scale(0.95); background: rgba(255,255,255,0.3); }
+
+.c-dog { color: #d2691e; }
+.c-crazy { color: #d65db1; }
+.c-black { color: #ff4d4d; }
+.c-eater { color: #4dff88; }
+.c-player { color: #4db8ff; }
+.c-common { color: #ddd; }
+.c-mouse { color: #aaa; }
+
+.controls-info { color: #ffff00; font-size: 13px; margin-top: 5px; font-weight: bold; text-transform: uppercase;}
+
+.btn-group { margin-top: 8px; display: flex; justify-content: center; gap: 10px; }
+.btn {
+    padding: 6px 12px; color: white; border-radius: 5px; font-weight: bold;
+    cursor: pointer; pointer-events: auto; text-transform: uppercase; font-size: 12px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.5); border: none;
+}
+.clear-btn { background-color: #e74c3c; }
+.clear-btn:hover { background-color: #ff5e57; }
+.pause-btn { background-color: #3498db; }
+.pause-btn:hover { background-color: #5dade2; }
+.pause-btn.paused { background-color: #f1c40f; color: black; animation: pulse 1s infinite; }
+@keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+

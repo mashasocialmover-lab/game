@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Cats vs Dogs: Сетевая игра</title>
+<link rel="stylesheet" href="style/main.css">
+</head>
+<body>
+
+<!-- Экран меню -->
+<div id="menuScreen" class="screen">
+    <div class="menu-container">
+        <h1>🐱🐶 Сетевая игра</h1>
+        <div class="menu-buttons">
+            <div class="menu-section">
+                <h2>Создать комнату</h2>
+                <input type="text" id="roomNameInput" placeholder="Название комнаты" maxlength="30">
+                <button class="btn btn-primary" onclick="createRoom()">Создать</button>
+            </div>
+            <div class="menu-section">
+                <h2>Присоединиться</h2>
+                <input type="text" id="roomCodeInput" placeholder="Код комнаты" maxlength="6" style="text-transform: uppercase;">
+                <button class="btn btn-primary" onclick="joinRoom()">Присоединиться</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Экран комнаты -->
+<div id="roomScreen" class="screen" style="display: none;">
+    <div class="room-container">
+        <h2>Комната: <span id="roomCode"></span></h2>
+        <div id="connectionStatus" class="status">🔴 Отключено</div>
+        <div class="players-section">
+            <h3>Игроки:</h3>
+            <ul id="playersList"></ul>
+        </div>
+        <div class="room-buttons">
+            <button class="btn btn-success" id="startGameBtn" onclick="startGame()" style="display: none;">Начать игру</button>
+            <button class="btn btn-danger" onclick="location.reload()">Покинуть комнату</button>
+        </div>
+    </div>
+</div>
+
+<!-- Экран игры -->
+<div id="gameScreen" class="screen" style="display: none;">
+    <div id="achievementBox">
+        <span class="ach-icon">🏆</span>
+        <span id="achText">МОЛОДЕЦ!</span>
+    </div>
+
+    <div id="costumeBtn" onclick="changeCostume()" title="Надеть шапку!">🎩</div>
+
+    <div id="instructions">
+        <div class="controls-info"><b>WASD</b> - Бегать | <b>Q</b> - Удар | <b>E</b> - Действие | <b>C</b> - Костюм</div>
+        <div class="legend-container">
+            <span class="legend c-mouse" onclick="spawnSpecific('MOUSE')" id="legend-mouse">🐭 МЫШЬ (1 HP)</span>
+            <span class="legend c-dog" onclick="spawnSpecific('DOG')" id="legend-dog">🐶 СОБАКА (5 HP)</span>
+            <span class="legend c-common" onclick="spawnSpecific('RUNNER')" id="legend-cat">🐈 КОТ (3 HP)</span>
+            <span class="legend c-crazy" onclick="spawnSpecific('CRAZY')">🤪 ПСИХ (4 HP)</span>
+            <span class="legend c-black" onclick="spawnSpecific('BITER')">💣 БОМБА (0 HP)</span>
+            <span class="legend c-eater" onclick="spawnSpecific('EATER')">🤢 ОБЖОРА (2 HP)</span>
+            <span class="legend c-player" onclick="spawnSpecific('PLAYER')">🧶 ИГРУН (2 HP)</span>
+        </div>
+        <div class="btn-group">
+            <button class="btn pause-btn" id="pauseBtn" onclick="togglePause()">⏸ СТОП</button>
+            <button class="btn clear-btn" onclick="clearAll()">🗑️ Очистить</button>
+        </div>
+    </div>
+
+    <canvas id="canvas1"></canvas>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
+
