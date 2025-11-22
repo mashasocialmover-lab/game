@@ -184,8 +184,11 @@ function setupSyncHandlers() {
 }
 
 function handleRemoteEntityMove(data) {
-    // Обновляем позицию удаленной сущности (только если не хост)
-    if (networkState.isHost) return; // Хост не получает обновления, он сам источник истины
+    // Обновляем позицию удаленной сущности
+    // НЕ обновляем если это наш персонаж
+    if (gameState.playerEntity && data.entity_id === gameState.playerEntity.id) {
+        return; // Игнорируем обновления своего персонажа
+    }
     
     let entity = findEntityById(data.entity_id);
     if (entity) {
@@ -200,20 +203,21 @@ function handleRemoteEntityMove(data) {
 }
 
 function handleRemoteEntityAction(data) {
-    if (networkState.isHost) return; // Хост не получает обновления
-    
     let entity = findEntityById(data.entity_id);
     if (entity) {
         if (data.action_type === 'item_update') {
-            // Обновление предмета
+            // Обновление предмета (только хост обновляет предметы, остальные получают)
             if (entity instanceof Item) {
-                const lerp = 0.5;
-                entity.x += (data.x - entity.x) * lerp;
-                entity.y += (data.y - entity.y) * lerp;
-                entity.vx = data.vx || 0;
-                entity.vy = data.vy || 0;
-                entity.eaten = data.eaten || false;
-                entity.size = data.size || entity.size;
+                if (!networkState.isHost) {
+                    // Не-хост получает обновления предметов
+                    const lerp = 0.5;
+                    entity.x += (data.x - entity.x) * lerp;
+                    entity.y += (data.y - entity.y) * lerp;
+                    entity.vx = data.vx || 0;
+                    entity.vy = data.vy || 0;
+                    entity.eaten = data.eaten || false;
+                    entity.size = data.size || entity.size;
+                }
             }
         } else if (data.action_type === 'attack') {
             // Логика атаки
@@ -285,18 +289,25 @@ export function animate() {
     ctx.strokeRect(gameState.gameArea.left, gameState.gameArea.top, gameState.gameArea.width, gameState.gameArea.height);
     ctx.setLineDash([]);
     
-    // Синхронизация всех сущностей (только хост отправляет полное состояние)
+    // Синхронизация всех сущностей
     if (networkState.isConnected) {
         const now = Date.now();
         if (now - lastSyncTime > SYNC_INTERVAL) {
+            // Каждый игрок отправляет позицию своего персонажа
+            if (gameState.playerEntity) {
+                syncEntityPosition(
+                    gameState.playerEntity.id,
+                    gameState.playerEntity.x,
+                    gameState.playerEntity.y,
+                    gameState.playerEntity.angle,
+                    gameState.playerEntity.vx || 0,
+                    gameState.playerEntity.vy || 0
+                );
+            }
+            
+            // Хост дополнительно синхронизирует NPC (мыши) и предметы
             if (networkState.isHost) {
-                // Хост синхронизирует все сущности
-                gameState.catsArray.forEach(cat => {
-                    syncEntityPosition(cat.id, cat.x, cat.y, cat.angle, cat.vx || 0, cat.vy || 0);
-                });
-                gameState.dogsArray.forEach(dog => {
-                    syncEntityPosition(dog.id, dog.x, dog.y, dog.angle, dog.vx || 0, dog.vy || 0);
-                });
+                // Синхронизируем только NPC (мыши)
                 gameState.miceArray.forEach(mouse => {
                     syncEntityPosition(mouse.id, mouse.x, mouse.y, mouse.angle, mouse.vx || 0, mouse.vy || 0);
                 });
@@ -313,18 +324,6 @@ export function animate() {
                         });
                     }
                 });
-            } else {
-                // Остальные игроки синхронизируют только своего персонажа
-                if (gameState.playerEntity) {
-                    syncEntityPosition(
-                        gameState.playerEntity.id,
-                        gameState.playerEntity.x,
-                        gameState.playerEntity.y,
-                        gameState.playerEntity.angle,
-                        gameState.playerEntity.vx || 0,
-                        gameState.playerEntity.vy || 0
-                    );
-                }
             }
             lastSyncTime = now;
         }
@@ -371,8 +370,13 @@ export function animate() {
     
     allObjects.forEach(obj => {
         if (obj instanceof Cat) {
-            // Обновляем только на хосте или если это наш персонаж
-            if (networkState.isHost || obj.isPlayer || !gameState.remoteEntities.has(obj.id)) {
+            // Обновляем если:
+            // 1. Это наш персонаж (obj.isPlayer && obj.id === gameState.playerEntity?.id)
+            // 2. ИЛИ это NPC и мы хост (не игрок и хост)
+            const isMyEntity = obj.isPlayer && gameState.playerEntity && obj.id === gameState.playerEntity.id;
+            const isNPC = !obj.isPlayer && networkState.isHost;
+            
+            if (isMyEntity || isNPC) {
                 obj.update();
             }
             obj.draw();
@@ -382,14 +386,20 @@ export function animate() {
                 if (gameState.playerEntity && gameState.playerEntity.id === obj.id) {
                     gameState.playerEntity = null;
                 }
-                if (networkState.isHost) {
+                // Синхронизируем удаление только если это наш персонаж или мы хост
+                if (isMyEntity || networkState.isHost) {
                     syncEntityDelete(obj.id);
                 }
             }
         }
         else if (obj instanceof Dog) {
-            // Обновляем только на хосте или если это наш персонаж
-            if (networkState.isHost || obj.isPlayer || !gameState.remoteEntities.has(obj.id)) {
+            // Обновляем если:
+            // 1. Это наш персонаж (obj.isPlayer && obj.id === gameState.playerEntity?.id)
+            // 2. ИЛИ это NPC и мы хост (не игрок и хост)
+            const isMyEntity = obj.isPlayer && gameState.playerEntity && obj.id === gameState.playerEntity.id;
+            const isNPC = !obj.isPlayer && networkState.isHost;
+            
+            if (isMyEntity || isNPC) {
                 obj.update();
             }
             obj.draw();
@@ -399,7 +409,8 @@ export function animate() {
                 if (gameState.playerEntity && gameState.playerEntity.id === obj.id) {
                     gameState.playerEntity = null;
                 }
-                if (networkState.isHost) {
+                // Синхронизируем удаление только если это наш персонаж или мы хост
+                if (isMyEntity || networkState.isHost) {
                     syncEntityDelete(obj.id);
                 }
             }
@@ -470,9 +481,12 @@ export function startNetworkGame() {
         if (networkState.isHost && !itemsInitialized) {
             createFixedItems();
             itemsInitialized = true;
-        } else if (!networkState.isHost && !itemsInitialized) {
+        } else if (!networkState.isHost) {
             // Не-хост создает предметы локально (с тем же seed)
-            createFixedItemsForClient();
+            // Проверяем, что предметы еще не созданы
+            if (gameState.particleArray.length === 0) {
+                createFixedItemsForClient();
+            }
         }
     }
 }

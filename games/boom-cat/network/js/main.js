@@ -180,9 +180,7 @@ window.joinRoom = async function() {
         if (result.room.status === 'playing') {
             // Игра уже началась, сразу переходим
             // Создаем предметы локально (с тем же seed что у хоста)
-            if (!itemsInitialized) {
-                createFixedItemsForClient();
-            }
+            createFixedItemsForClient();
             startNetworkGame();
             showGameScreen();
         } else {
