@@ -1,7 +1,7 @@
 // Основная логика сетевой игры
 import { gameState } from './gameState.js';
 import { networkState } from './networkState.js';
-import { COOLDOWN_MS, SYNC_INTERVAL } from './config.js';
+import { COOLDOWN_MS, SYNC_INTERVAL, MOUSE_SYNC_INTERVAL, ITEM_SYNC_INTERVAL } from './config.js';
 import { updateGameArea } from './gameArea.js';
 import { initAudio, playSound } from './audio.js';
 import { updateLegendName, updatePlayersList, updateConnectionStatus } from './ui.js';
@@ -14,6 +14,8 @@ import { Cat } from './entities/Cat.js';
 import { Item } from './entities/Item.js';
 
 let lastSyncTime = 0;
+let lastMouseSyncTime = 0;
+let lastItemSyncTime = 0;
 let roomSubscription = null;
 let itemsInitialized = false;
 
@@ -292,8 +294,9 @@ export function animate() {
     // Синхронизация всех сущностей
     if (networkState.isConnected) {
         const now = Date.now();
+        
+        // Синхронизация персонажа игрока (каждые SYNC_INTERVAL)
         if (now - lastSyncTime > SYNC_INTERVAL) {
-            // Каждый игрок отправляет позицию своего персонажа
             if (gameState.playerEntity) {
                 syncEntityPosition(
                     gameState.playerEntity.id,
@@ -304,28 +307,38 @@ export function animate() {
                     gameState.playerEntity.vy || 0
                 );
             }
-            
-            // Хост дополнительно синхронизирует NPC (мыши) и предметы
-            if (networkState.isHost) {
-                // Синхронизируем только NPC (мыши)
+            lastSyncTime = now;
+        }
+        
+        // Хост синхронизирует NPC и предметы реже
+        if (networkState.isHost) {
+            // Мыши - каждые MOUSE_SYNC_INTERVAL (реже чем персонажи)
+            if (now - lastMouseSyncTime > MOUSE_SYNC_INTERVAL) {
                 gameState.miceArray.forEach(mouse => {
                     syncEntityPosition(mouse.id, mouse.x, mouse.y, mouse.angle, mouse.vx || 0, mouse.vy || 0);
                 });
-                // Синхронизируем предметы (позиция и состояние)
+                lastMouseSyncTime = now;
+            }
+            
+            // Предметы - только раз в ITEM_SYNC_INTERVAL (они почти статичны)
+            if (now - lastItemSyncTime > ITEM_SYNC_INTERVAL) {
                 gameState.particleArray.forEach(item => {
-                    if (item.id) {
-                        syncEntityAction(item.id, 'item_update', {
-                            x: item.x,
-                            y: item.y,
-                            vx: item.vx || 0,
-                            vy: item.vy || 0,
-                            eaten: item.eaten,
-                            size: item.size
-                        });
+                    if (item.id && !item.eaten) {
+                        // Отправляем только если предмет двигался значительно
+                        if (Math.abs(item.vx) > 0.1 || Math.abs(item.vy) > 0.1 || item.eaten) {
+                            syncEntityAction(item.id, 'item_update', {
+                                x: item.x,
+                                y: item.y,
+                                vx: item.vx || 0,
+                                vy: item.vy || 0,
+                                eaten: item.eaten,
+                                size: item.size
+                            });
+                        }
                     }
                 });
+                lastItemSyncTime = now;
             }
-            lastSyncTime = now;
         }
     }
     

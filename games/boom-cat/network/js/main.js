@@ -6,6 +6,7 @@ import { init, animate, setupEventListeners, startNetworkGame, createFixedItemsF
 import { createRoom, joinRoom, getRoomPlayers, subscribeToRoom, startGame, archiveEmptyRooms, updatePlayerName } from './roomManager.js';
 import { updatePlayersList, showRoomScreen, showGameScreen, updateConnectionStatus } from './ui.js';
 import { supabase } from './supabaseClient.js';
+import { flushPendingEvents } from './syncManager.js';
 
 // Инициализация сетевого состояния
 initNetworkState();

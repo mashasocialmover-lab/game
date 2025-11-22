@@ -129,6 +129,16 @@ export async function leaveRoom() {
     if (!networkState.currentRoom) return;
 
     try {
+        // Отправляем оставшиеся события перед выходом
+        try {
+            const { flushPendingEvents } = await import('./syncManager.js');
+            if (flushPendingEvents) {
+                flushPendingEvents();
+            }
+        } catch (e) {
+            // Игнорируем ошибки импорта
+        }
+        
         // Удаляем игрока из таблицы players
         await supabase
             .from('players')

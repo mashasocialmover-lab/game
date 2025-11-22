@@ -1,10 +1,12 @@
 // Менеджер синхронизации состояния игры
 import { supabase } from './supabaseClient.js';
 import { networkState } from './networkState.js';
-import { SYNC_INTERVAL } from './config.js';
+import { SYNC_INTERVAL, BATCH_INTERVAL, MAX_BATCH_SIZE } from './config.js';
 
 let syncChannel = null;
 let syncCallbacks = [];
+let pendingEvents = []; // Буфер для батчинга событий
+let lastBatchSend = 0;
 
 // Инициализация синхронизации
 export function initSync(roomId) {
@@ -55,28 +57,51 @@ export function onGameEvent(callback) {
     };
 }
 
-// Отправка события в игру
+// Отправка события в игру (с батчингом)
 export async function sendGameEvent(eventType, eventData) {
     if (!networkState.currentRoom) return;
+
+    // Добавляем в буфер
+    pendingEvents.push({
+        room_id: networkState.currentRoom.id,
+        player_id: networkState.playerId,
+        event_type: eventType,
+        event_data: eventData,
+        timestamp: new Date().toISOString()
+    });
+
+    // Отправляем батч если накопилось достаточно или прошло время
+    const now = Date.now();
+    if (pendingEvents.length >= MAX_BATCH_SIZE || (now - lastBatchSend) >= BATCH_INTERVAL) {
+        await flushEventBatch();
+    }
+}
+
+// Отправка батча событий
+async function flushEventBatch() {
+    if (pendingEvents.length === 0) return;
+    
+    const eventsToSend = [...pendingEvents];
+    pendingEvents = [];
+    lastBatchSend = Date.now();
 
     try {
         const { error } = await supabase
             .from('game_events')
-            .insert([
-                {
-                    room_id: networkState.currentRoom.id,
-                    player_id: networkState.playerId,
-                    event_type: eventType,
-                    event_data: eventData,
-                    timestamp: new Date().toISOString()
-                }
-            ]);
+            .insert(eventsToSend);
 
         if (error) {
-            console.error('Ошибка отправки события:', error);
+            console.error('Ошибка отправки батча событий:', error);
         }
     } catch (error) {
-        console.error('Ошибка отправки события:', error);
+        console.error('Ошибка отправки батча событий:', error);
+    }
+}
+
+// Принудительная отправка батча (вызывать перед выходом)
+export function flushPendingEvents() {
+    if (pendingEvents.length > 0) {
+        flushEventBatch();
     }
 }
 

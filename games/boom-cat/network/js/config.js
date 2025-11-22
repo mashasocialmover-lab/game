@@ -7,5 +7,9 @@ export const DOG_NAMES = ["Рекс", "Шарик", "Бобик", "Мухтар"
 export const MOUSE_NAMES = ["Джерри", "Пик", "Микки", "Шустрик", "Зернышко", "Хвост", "Стюарт", "Крош"];
 export const COOLDOWN_MS = 1000;
 export const MAX_PLAYERS = 4;
-export const SYNC_INTERVAL = 100; // Интервал синхронизации в мс
+export const SYNC_INTERVAL = 200; // Интервал синхронизации в мс (увеличено для снижения нагрузки)
+export const MOUSE_SYNC_INTERVAL = 300; // Интервал синхронизации мышей
+export const ITEM_SYNC_INTERVAL = 1000; // Интервал синхронизации предметов (они почти статичны)
+export const BATCH_INTERVAL = 150; // Интервал отправки батча событий
+export const MAX_BATCH_SIZE = 20; // Максимум событий в батче
 
