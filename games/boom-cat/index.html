@@ -109,9 +109,9 @@ html
 <div id="instructions">
     <div class="controls-info"><b>WASD</b> - Бегать | <b>Q</b> - Удар | <b>E</b> - Действие | <b>C</b> - Костюм</div>
     <div class="legend-container">
-        <span class="legend c-mouse" onclick="spawnSpecific('MOUSE')">🐭 (1 HP)</span>
-        <span class="legend c-dog" onclick="spawnSpecific('DOG')">🐶 (5 HP)</span>
-        <span class="legend c-common" onclick="spawnSpecific('RUNNER')">🐈 (3 HP)</span>
+        <span class="legend c-mouse" onclick="spawnSpecific('MOUSE')" id="legend-mouse">🐭 МЫШЬ (1 HP)</span>
+        <span class="legend c-dog" onclick="spawnSpecific('DOG')" id="legend-dog">🐶 СОБАКА (5 HP)</span>
+        <span class="legend c-common" onclick="spawnSpecific('RUNNER')" id="legend-cat">🐈 КОТ (3 HP)</span>
         <span class="legend c-crazy" onclick="spawnSpecific('CRAZY')">🤪 ПСИХ (4 HP)</span>
         <span class="legend c-black" onclick="spawnSpecific('BITER')">💣 БОМБА (0 HP)</span>
         <span class="legend c-eater" onclick="spawnSpecific('EATER')">🤢 ОБЖОРА (2 HP)</span>
@@ -130,6 +130,26 @@ const canvas = document.getElementById('canvas1');
 const ctx = canvas.getContext('2d');
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
+
+// Границы игрового поля
+let gameArea = {
+    left: 100,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: 0,
+    height: 0
+};
+
+function updateGameArea() {
+    const instructionsHeight = document.getElementById('instructions').offsetHeight;
+    gameArea.top = instructionsHeight + 50;
+    gameArea.bottom = canvas.height - 50;
+    gameArea.right = canvas.width - 100;
+    gameArea.width = gameArea.right - gameArea.left;
+    gameArea.height = gameArea.bottom - gameArea.top;
+}
+updateGameArea();
 
 let particleArray = [];
 let footprints = [];
@@ -245,18 +265,52 @@ window.clearAll = function() {
 
 window.spawnSpecific = function(type) {
     initAudio();
-    let x = 50 + Math.random() * (canvas.width - 100);
-    let y = 100 + Math.random() * (canvas.height - 150);
-    if (type === 'DOG') dogsArray.push(new Dog(x, y));
-    else if (type === 'MOUSE') miceArray.push(new Mouse(x, y));
-    else catsArray.push(new Cat(x, y, type)); 
+    updateGameArea();
+    let x = gameArea.left + Math.random() * gameArea.width;
+    let y = gameArea.top + Math.random() * gameArea.height;
+    if (type === 'DOG') {
+        let dog = new Dog(x, y);
+        dogsArray.push(dog);
+        updateLegendName('legend-dog', dog.name);
+    }
+    else if (type === 'MOUSE') {
+        let mouse = new Mouse(x, y);
+        miceArray.push(mouse);
+        updateLegendName('legend-mouse', mouse.name);
+    }
+    else {
+        let cat = new Cat(x, y, type);
+        catsArray.push(cat);
+        if (type === 'RUNNER') updateLegendName('legend-cat', cat.name);
+    }
 };
+
+function updateLegendName(legendId, name) {
+    const legend = document.getElementById(legendId);
+    if (legend) {
+        const text = legend.innerText;
+        const parts = text.split(' ');
+        if (parts.length > 0) {
+            const emoji = parts[0];
+            const hp = text.match(/\(.*\)/);
+            legend.innerText = `${emoji} ${name} ${hp ? hp[0] : ''}`;
+        }
+    }
+}
 
 window.addEventListener('mousedown', e => { 
     if (e.target.id !== 'canvas1') return; 
     initAudio();
+    updateGameArea();
     const currentTime = Date.now();
     const clickX = e.clientX; const clickY = e.clientY;
+    
+    // Проверка что клик внутри игровой области
+    if (clickX < gameArea.left || clickX > gameArea.right || 
+        clickY < gameArea.top || clickY > gameArea.bottom) {
+        return;
+    }
+    
     let clickedObject = null;
     let allEntities = [...catsArray, ...dogsArray];
     for (let i = allEntities.length - 1; i >= 0; i--) {
@@ -274,12 +328,25 @@ window.addEventListener('mousedown', e => {
     if (currentTime - lastSpawnTime < COOLDOWN_MS) return;
     lastSpawnTime = currentTime;
     let rand = Math.random();
-    if (rand < 0.03) dogsArray.push(new Dog(clickX, clickY)); 
-    else catsArray.push(new Cat(clickX, clickY)); 
+    if (rand < 0.03) {
+        let dog = new Dog(clickX, clickY);
+        dogsArray.push(dog);
+        updateLegendName('legend-dog', dog.name);
+    }
+    else {
+        let cat = new Cat(clickX, clickY);
+        catsArray.push(cat);
+        updateLegendName('legend-cat', cat.name);
+    }
 });
 
 window.addEventListener('mousemove', e => { mouse.x = e.x; mouse.y = e.y; });
-window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; init(); });
+window.addEventListener('resize', () => { 
+    canvas.width = window.innerWidth; 
+    canvas.height = window.innerHeight; 
+    updateGameArea();
+    init(); 
+});
 
 function drawHpBar(ctx, hp, maxHp) {
     let w = 40; let h = 6; let y = -55;
@@ -352,8 +419,11 @@ class Mouse {
             }
         }
         this.x += this.vx; this.y += this.vy;
-        if (this.x < 20 || this.x > canvas.width - 20) { this.vx *= -1; this.angle += Math.PI; }
-        if (this.y < 20 || this.y > canvas.height - 20) { this.vy *= -1; this.angle += Math.PI; }
+        // Ограничение движения внутри игровой области
+        if (this.x < gameArea.left + 20 || this.x > gameArea.right - 20) { this.vx *= -1; this.angle += Math.PI; }
+        if (this.y < gameArea.top + 20 || this.y > gameArea.bottom - 20) { this.vy *= -1; this.angle += Math.PI; }
+        this.x = Math.max(gameArea.left + 20, Math.min(gameArea.right - 20, this.x));
+        this.y = Math.max(gameArea.top + 20, Math.min(gameArea.bottom - 20, this.y));
         this.angle = Math.atan2(this.vy, this.vx);
     }
     draw() {
@@ -398,12 +468,12 @@ class Dog {
             this.barkTimer--;
             if (this.barkTimer <= 0) { this.doBark(); this.barkTimer = 150 + Math.random() * 300; }
             this.x += this.vx; this.y += this.vy;
-            if (this.x < 50 || this.x > canvas.width - 50) this.vx *= -1;
-            if (this.y < 50 || this.y > canvas.height - 50) this.vy *= -1;
+            if (this.x < gameArea.left + 50 || this.x > gameArea.right - 50) this.vx *= -1;
+            if (this.y < gameArea.top + 50 || this.y > gameArea.bottom - 50) this.vy *= -1;
             this.angle = Math.atan2(this.vy, this.vx);
         } else if (this.state === 'FLEEING') {
             this.x += this.vx; this.y += this.vy;
-            if (this.x < -100 || this.x > canvas.width + 100 || this.y < -100 || this.y > canvas.height + 100) this.markedForDeletion = true;
+            if (this.x < gameArea.left - 100 || this.x > gameArea.right + 100 || this.y < gameArea.top - 100 || this.y > gameArea.bottom + 100) this.markedForDeletion = true;
         }
     }
     handlePlayerInput() {
@@ -414,7 +484,9 @@ class Dog {
         this.x += this.vx; this.y += this.vy;
         if (this.vx !== 0 || this.vy !== 0) this.angle = Math.atan2(this.vy, this.vx);
         if (keys.KeyE && this.actionCooldown <= 0) { this.doBark(); this.actionCooldown = 60; }
-        this.x = Math.max(20, Math.min(canvas.width-20, this.x)); this.y = Math.max(20, Math.min(canvas.height-20, this.y));
+        // Ограничение движения внутри игровой области
+        this.x = Math.max(gameArea.left + 20, Math.min(gameArea.right - 20, this.x)); 
+        this.y = Math.max(gameArea.top + 20, Math.min(gameArea.bottom - 20, this.y));
     }
     doBark() {
         playSound('bark');
@@ -628,7 +700,13 @@ class Cat {
                     let dx = this.targetItem.x - this.x, dy = this.targetItem.y - this.y;
                     let d = Math.sqrt(dx*dx + dy*dy);
                     this.angle = Math.atan2(dy, dx);
-                    if (d > 10) { this.x += Math.cos(this.angle)*this.speed; this.y += Math.sin(this.angle)*this.speed; }
+                    if (d > 10) { 
+                        this.x += Math.cos(this.angle)*this.speed; 
+                        this.y += Math.sin(this.angle)*this.speed;
+                        // Ограничение движения внутри игровой области
+                        this.x = Math.max(gameArea.left + 20, Math.min(gameArea.right - 20, this.x));
+                        this.y = Math.max(gameArea.top + 20, Math.min(gameArea.bottom - 20, this.y));
+                    }
                     else {
                         playSound('eat'); this.targetItem.eaten = true; this.targetItem.size = 0; this.targetItem.respawnTimer = 300; 
                         this.foodConsumed++; 
@@ -638,7 +716,11 @@ class Cat {
                     }
                 } else { this.state = 'LEAVING'; this.angle = Math.random()*Math.PI*2; }
             } else if (this.state === 'LEAVING') {
-                this.x += Math.cos(this.angle)*this.speed*1.5; this.y += Math.sin(this.angle)*this.speed*1.5;
+                this.x += Math.cos(this.angle)*this.speed*1.5; 
+                this.y += Math.sin(this.angle)*this.speed*1.5;
+                // Ограничение движения внутри игровой области
+                this.x = Math.max(gameArea.left + 20, Math.min(gameArea.right - 20, this.x));
+                this.y = Math.max(gameArea.top + 20, Math.min(gameArea.bottom - 20, this.y));
                 if (this.isOffScreen()) this.markedForDeletion = true;
             }
         }
@@ -649,7 +731,13 @@ class Cat {
                     let dx = this.targetItem.x - this.x, dy = this.targetItem.y - this.y;
                     let d = Math.sqrt(dx*dx+dy*dy);
                     this.angle = Math.atan2(dy, dx);
-                    if (d > 40) { this.x += Math.cos(this.angle)*this.speed; this.y += Math.sin(this.angle)*this.speed; }
+                    if (d > 40) { 
+                        this.x += Math.cos(this.angle)*this.speed; 
+                        this.y += Math.sin(this.angle)*this.speed;
+                        // Ограничение движения внутри игровой области
+                        this.x = Math.max(gameArea.left + 20, Math.min(gameArea.right - 20, this.x));
+                        this.y = Math.max(gameArea.top + 20, Math.min(gameArea.bottom - 20, this.y));
+                    }
                     else this.state = 'PLAYING';
                 } else { this.state = 'LEAVING'; this.angle = Math.random()*Math.PI*2; }
             } else if (this.state === 'PLAYING') {
@@ -663,7 +751,11 @@ class Cat {
                 }
                 if (this.playTimer <= 0) { this.state = 'LEAVING'; this.angle = Math.random()*Math.PI*2; }
             } else if (this.state === 'LEAVING') {
-                this.x += Math.cos(this.angle)*this.speed; this.y += Math.sin(this.angle)*this.speed;
+                this.x += Math.cos(this.angle)*this.speed; 
+                this.y += Math.sin(this.angle)*this.speed;
+                // Ограничение движения внутри игровой области
+                this.x = Math.max(gameArea.left + 20, Math.min(gameArea.right - 20, this.x));
+                this.y = Math.max(gameArea.top + 20, Math.min(gameArea.bottom - 20, this.y));
                 if (this.isOffScreen()) this.markedForDeletion = true;
             }
         }
@@ -689,10 +781,14 @@ class Cat {
         }
         else { 
             this.x += this.vx; this.y += this.vy;
+            // Ограничение движения внутри игровой области
+            this.x = Math.max(gameArea.left + 20, Math.min(gameArea.right - 20, this.x));
+            this.y = Math.max(gameArea.top + 20, Math.min(gameArea.bottom - 20, this.y));
+            
             if (this.type === 'CRAZY' && this.bounceCount < this.maxBounces && !this.chasingDog) {
                 let hit = false;
-                if (this.x < 30 || this.x > canvas.width-30) { this.vx *= -1; hit=true; this.angle = Math.atan2(this.vy, this.vx); }
-                if (this.y < 30 || this.y > canvas.height-30) { this.vy *= -1; hit=true; this.angle = Math.atan2(this.vy, this.vx); }
+                if (this.x <= gameArea.left + 30 || this.x >= gameArea.right - 30) { this.vx *= -1; hit=true; this.angle = Math.atan2(this.vy, this.vx); }
+                if (this.y <= gameArea.top + 30 || this.y >= gameArea.bottom - 30) { this.vy *= -1; hit=true; this.angle = Math.atan2(this.vy, this.vx); }
                 if (hit) { this.bounceCount++; playSound('bounce'); }
             } else if (!this.chasingDog) {
                 this.angle = Math.atan2(this.vy, this.vx);
@@ -711,8 +807,9 @@ class Cat {
         if (this.vx !== 0 && this.vy !== 0) { this.vx *= 0.71; this.vy *= 0.71; }
         this.x += this.vx; this.y += this.vy;
         if (this.vx !== 0 || this.vy !== 0) this.angle = Math.atan2(this.vy, this.vx);
-        this.x = Math.max(20, Math.min(canvas.width-20, this.x));
-        this.y = Math.max(20, Math.min(canvas.height-20, this.y));
+        // Ограничение движения внутри игровой области
+        this.x = Math.max(gameArea.left + 20, Math.min(gameArea.right - 20, this.x));
+        this.y = Math.max(gameArea.top + 20, Math.min(gameArea.bottom - 20, this.y));
         if (keys.KeyE && this.actionCooldown <= 0) { this.doPlayerAction(); }
         if (keys.KeyQ && this.actionCooldown <= 0) {
             this.doSwipeAttack(); gameStats.swipes++;
@@ -765,7 +862,7 @@ class Cat {
         } else { playSound('meow'); }
     }
 
-    isOffScreen() { return (this.x < -100 || this.x > canvas.width + 100 || this.y < -100 || this.y > canvas.height + 100); }
+    isOffScreen() { return (this.x < gameArea.left - 100 || this.x > gameArea.right + 100 || this.y < gameArea.top - 100 || this.y > gameArea.bottom + 100); }
 
     draw() {
         // РИСУЕМ ВЗРЫВ БОМБЫ
@@ -951,6 +1048,9 @@ class Item {
             if (dist < 40) { let a = Math.atan2(this.y-dog.y, this.x-dog.x); this.vx += Math.cos(a)*3; this.vy += Math.sin(a)*3; }
         });
         this.x += this.vx; this.y += this.vy; this.vx *= this.friction; this.vy *= this.friction;
+        // Ограничение частиц внутри игровой области
+        this.x = Math.max(gameArea.left + 10, Math.min(gameArea.right - 10, this.x));
+        this.y = Math.max(gameArea.top + 10, Math.min(gameArea.bottom - 10, this.y));
         if (this.x !== this.baseX) this.x -= (this.x - this.baseX) * this.returnSpeed;
         if (this.y !== this.baseY) this.y -= (this.y - this.baseY) * this.returnSpeed;
     }
@@ -959,12 +1059,28 @@ class Item {
 function adjustColor(color, amount) { return color; }
 
 function init() {
-    particleArray = []; aquarium = new Aquarium(100, canvas.height - 150);
-    let step = 25; for (let y = 20; y < canvas.height-20; y += step) { for (let x = 20; x < canvas.width-20; x += step) { particleArray.push(new Item(x, y)); } }
+    updateGameArea();
+    particleArray = []; 
+    aquarium = new Aquarium(gameArea.left + 50, gameArea.bottom - 50);
+    let step = 25; 
+    for (let y = gameArea.top + 20; y < gameArea.bottom - 20; y += step) { 
+        for (let x = gameArea.left + 20; x < gameArea.right - 20; x += step) { 
+            particleArray.push(new Item(x, y)); 
+        } 
+    }
 }
 
 function animate() {
+    updateGameArea();
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Рисуем границу игрового поля
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 5]);
+    ctx.strokeRect(gameArea.left, gameArea.top, gameArea.width, gameArea.height);
+    ctx.setLineDash([]);
+    
     if (Math.random() < 0.003 && audioContext && audioContext.state === 'running') playSound('meow');
     for(let i=footprints.length-1; i>=0; i--) {
         let fp = footprints[i]; ctx.save(); ctx.translate(fp.x, fp.y); ctx.rotate(fp.angle + Math.PI/2); ctx.fillStyle = `rgba(0,0,0, ${fp.life/300})`; 
