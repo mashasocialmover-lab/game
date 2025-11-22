@@ -195,6 +195,10 @@ window.joinRoom = async function() {
                     const newStatus = payload.new.status;
                     if (newStatus === 'playing' && networkState.currentRoom?.status !== 'playing') {
                         networkState.currentRoom.status = 'playing';
+                        // Создаем предметы перед стартом игры
+                        if (!networkState.isHost && gameState.particleArray.length === 0) {
+                            createFixedItemsForClient();
+                        }
                         startNetworkGame();
                         showGameScreen();
                     }
@@ -214,6 +218,10 @@ window.joinRoom = async function() {
                     .single();
                 if (data && data.status === 'playing' && networkState.currentRoom.status !== 'playing') {
                     networkState.currentRoom.status = 'playing';
+                    // Создаем предметы перед стартом игры
+                    if (!networkState.isHost && gameState.particleArray.length === 0) {
+                        createFixedItemsForClient();
+                    }
                     startNetworkGame();
                     showGameScreen();
                     clearInterval(statusCheckInterval);
