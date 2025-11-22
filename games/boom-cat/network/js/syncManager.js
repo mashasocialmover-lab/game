@@ -1,52 +1,32 @@
-// Менеджер синхронизации состояния игры
-import { supabase } from './supabaseClient.js';
+// Менеджер синхронизации состояния игры (через WebRTC)
 import { networkState } from './networkState.js';
-import { SYNC_INTERVAL, BATCH_INTERVAL, MAX_BATCH_SIZE } from './config.js';
+import { sendGameEventViaWebRTC, onWebRTCEvent, initWebRTC, connectToAllPlayers, stopWebRTC } from './webrtcManager.js';
 
-let syncChannel = null;
 let syncCallbacks = [];
-let pendingEvents = []; // Буфер для батчинга событий
-let lastBatchSend = 0;
 
-// Инициализация синхронизации
+// Инициализация синхронизации через WebRTC
 export function initSync(roomId) {
-    if (syncChannel) {
-        supabase.removeChannel(syncChannel);
-    }
-
-    syncChannel = supabase
-        .channel('game_sync_' + roomId)
-        .on('postgres_changes', {
-            event: '*',
-            schema: 'public',
-            table: 'game_events',
-            filter: 'room_id=eq.' + roomId
-        }, (payload) => {
-            handleGameEvent(payload);
-        })
-        .subscribe();
-
-    return syncChannel;
-}
-
-// Обработка игрового события
-function handleGameEvent(payload) {
-    // Игнорируем собственные события
-    if (payload.new && payload.new.player_id === networkState.playerId) {
-        return;
-    }
-
-    const event = payload.new || payload.old;
-    if (!event) return;
-
-    // Вызываем все зарегистрированные колбэки
-    syncCallbacks.forEach(callback => {
-        try {
-            callback(event);
-        } catch (error) {
-            console.error('Ошибка в callback синхронизации:', error);
+    // Инициализируем WebRTC сигналинг
+    initWebRTC(roomId);
+    
+    // Подписываемся на события через WebRTC
+    onWebRTCEvent((event) => {
+        // Игнорируем собственные события
+        if (event.player_id === networkState.playerId) {
+            return;
         }
+
+        // Вызываем все зарегистрированные колбэки
+        syncCallbacks.forEach(callback => {
+            try {
+                callback(event);
+            } catch (error) {
+                console.error('Ошибка в callback синхронизации:', error);
+            }
+        });
     });
+
+    return true;
 }
 
 // Подписка на события синхронизации
@@ -57,52 +37,17 @@ export function onGameEvent(callback) {
     };
 }
 
-// Отправка события в игру (с батчингом)
-export async function sendGameEvent(eventType, eventData) {
+// Отправка события в игру через WebRTC
+export function sendGameEvent(eventType, eventData) {
     if (!networkState.currentRoom) return;
-
-    // Добавляем в буфер
-    pendingEvents.push({
-        room_id: networkState.currentRoom.id,
-        player_id: networkState.playerId,
-        event_type: eventType,
-        event_data: eventData,
-        timestamp: new Date().toISOString()
-    });
-
-    // Отправляем батч если накопилось достаточно или прошло время
-    const now = Date.now();
-    if (pendingEvents.length >= MAX_BATCH_SIZE || (now - lastBatchSend) >= BATCH_INTERVAL) {
-        await flushEventBatch();
-    }
-}
-
-// Отправка батча событий
-async function flushEventBatch() {
-    if (pendingEvents.length === 0) return;
     
-    const eventsToSend = [...pendingEvents];
-    pendingEvents = [];
-    lastBatchSend = Date.now();
-
-    try {
-        const { error } = await supabase
-            .from('game_events')
-            .insert(eventsToSend);
-
-        if (error) {
-            console.error('Ошибка отправки батча событий:', error);
-        }
-    } catch (error) {
-        console.error('Ошибка отправки батча событий:', error);
-    }
+    // Отправляем напрямую через WebRTC (без батчинга - WebRTC быстрый)
+    sendGameEventViaWebRTC(eventType, eventData);
 }
 
-// Принудительная отправка батча (вызывать перед выходом)
+// Принудительная отправка (для WebRTC не нужна, но оставляем для совместимости)
 export function flushPendingEvents() {
-    if (pendingEvents.length > 0) {
-        flushEventBatch();
-    }
+    // WebRTC отправляет события сразу, батчинг не нужен
 }
 
 // Синхронизация позиции сущности
@@ -145,10 +90,7 @@ export function syncEntityDelete(entityId) {
 
 // Остановка синхронизации
 export function stopSync() {
-    if (syncChannel) {
-        supabase.removeChannel(syncChannel);
-        syncChannel = null;
-    }
+    stopWebRTC();
     syncCallbacks = [];
 }
 

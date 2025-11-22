@@ -117,6 +117,13 @@ export async function getRoomPlayers(roomId) {
         if (error) throw error;
 
         networkState.connectedPlayers = data || [];
+        
+        // Устанавливаем WebRTC соединения с другими игроками
+        if (data && data.length > 1) {
+            const { connectToAllPlayers } = await import('./webrtcManager.js');
+            await connectToAllPlayers(data);
+        }
+        
         return data || [];
     } catch (error) {
         console.error('Ошибка получения игроков:', error);

@@ -76,8 +76,24 @@ export function updatePlayersList(players) {
 export function updateConnectionStatus(isConnected) {
     const statusEl = document.getElementById('connectionStatus');
     if (statusEl) {
-        statusEl.textContent = isConnected ? '🟢 Подключено' : '🔴 Отключено';
-        statusEl.style.color = isConnected ? '#4dff88' : '#ff4d4d';
+        // Проверяем WebRTC соединения
+        import('./webrtcManager.js').then(({ getConnectionStatus }) => {
+            const status = getConnectionStatus();
+            if (isConnected && status.total > 0) {
+                const text = status.connected === status.total 
+                    ? `🟢 WebRTC: ${status.connected}/${status.total} подключено`
+                    : `🟡 WebRTC: ${status.connected}/${status.total} подключено`;
+                statusEl.textContent = text;
+                statusEl.style.color = status.connected === status.total ? '#4dff88' : '#ffaa00';
+            } else {
+                statusEl.textContent = isConnected ? '🟡 Подключение...' : '🔴 Отключено';
+                statusEl.style.color = isConnected ? '#ffaa00' : '#ff4d4d';
+            }
+        }).catch(() => {
+            // Fallback если WebRTC не загружен
+            statusEl.textContent = isConnected ? '🟢 Подключено' : '🔴 Отключено';
+            statusEl.style.color = isConnected ? '#4dff88' : '#ff4d4d';
+        });
     }
 }
 
