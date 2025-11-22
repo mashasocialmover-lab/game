@@ -250,3 +250,8 @@ window.startGame = async function() {
 init();
 animate();
 
+// Отправка оставшихся событий при закрытии страницы
+window.addEventListener('beforeunload', () => {
+    flushPendingEvents();
+});
+
