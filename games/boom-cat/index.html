@@ -673,6 +673,10 @@ class Cat {
                 this.chasingDog = nearestDog;
                 let angleToDog = Math.atan2(nearestDog.y - this.y, nearestDog.x - this.x);
                 this.vx = Math.cos(angleToDog) * 20; this.vy = Math.sin(angleToDog) * 20;
+                this.x += this.vx; this.y += this.vy;
+                // Ограничение движения внутри игровой области
+                this.x = Math.max(gameArea.left + 20, Math.min(gameArea.right - 20, this.x));
+                this.y = Math.max(gameArea.top + 20, Math.min(gameArea.bottom - 20, this.y));
                 if (minDogDist < 40) {
                     playSound('hiss'); playSound('whine'); 
                     nearestDog.state = 'FLEEING'; nearestDog.angle = angleToDog; 
@@ -688,6 +692,9 @@ class Cat {
                     this.vx = Math.cos(this.angle) * panicSpeed; this.vy = Math.sin(this.angle) * panicSpeed;
                 }
                 this.x += this.vx; this.y += this.vy;
+                // Ограничение движения внутри игровой области
+                this.x = Math.max(gameArea.left + 20, Math.min(gameArea.right - 20, this.x));
+                this.y = Math.max(gameArea.top + 20, Math.min(gameArea.bottom - 20, this.y));
                 if (this.isOffScreen()) this.markedForDeletion = true;
                 return; 
             }
