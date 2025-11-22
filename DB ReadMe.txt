@@ -1,0 +1,2 @@
+DB Progect URL - https://heopelxwmkzjwsfmsbjp.supabase.co
+DB API Key     - eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhlb3BlbHh3bWt6andzZm1zYmpwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM4MTE2ODAsImV4cCI6MjA3OTM4NzY4MH0.k8RSL5bdPuhJV0mvn3TvDvAJWqOrGEQiSJuz9qXuwYg
