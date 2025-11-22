@@ -112,8 +112,9 @@ export class Item {
         // Ограничение частиц внутри игровой области
         this.x = Math.max(gameState.gameArea.left + 10, Math.min(gameState.gameArea.right - 10, this.x));
         this.y = Math.max(gameState.gameArea.top + 10, Math.min(gameState.gameArea.bottom - 10, this.y));
-        if (this.x !== this.baseX) this.x -= (this.x - this.baseX) * this.returnSpeed;
-        if (this.y !== this.baseY) this.y -= (this.y - this.baseY) * this.returnSpeed;
+        // Убрана физика возврата для сетевой игры
+        // if (this.x !== this.baseX) this.x -= (this.x - this.baseX) * this.returnSpeed;
+        // if (this.y !== this.baseY) this.y -= (this.y - this.baseY) * this.returnSpeed;
     }
 }
 

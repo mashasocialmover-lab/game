@@ -2,7 +2,7 @@
 import { gameState } from './gameState.js';
 import { networkState, initNetworkState } from './networkState.js';
 import { updateGameArea } from './gameArea.js';
-import { init, animate, setupEventListeners, startNetworkGame } from './game.js';
+import { init, animate, setupEventListeners, startNetworkGame, createFixedItemsForClient } from './game.js';
 import { createRoom, joinRoom, getRoomPlayers, subscribeToRoom, startGame, archiveEmptyRooms, updatePlayerName } from './roomManager.js';
 import { updatePlayersList, showRoomScreen, showGameScreen, updateConnectionStatus } from './ui.js';
 import { supabase } from './supabaseClient.js';
@@ -19,12 +19,19 @@ if (document.getElementById('playerNameInput')) {
     document.getElementById('playerNameInput').value = networkState.playerName;
 }
 
-// Автоматическое присоединение по ссылке
+// Если есть код комнаты в URL - скрываем создание комнаты
 if (roomCodeFromUrl) {
+    const createSection = document.getElementById('createRoomSection');
+    if (createSection) {
+        createSection.style.display = 'none';
+    }
+    // Автоматически заполняем поле кода
     setTimeout(() => {
-        document.getElementById('roomCodeInput').value = roomCodeFromUrl.toUpperCase();
-        joinRoom();
-    }, 500);
+        const codeInput = document.getElementById('roomCodeInput');
+        if (codeInput) {
+            codeInput.value = roomCodeFromUrl.toUpperCase();
+        }
+    }, 100);
 }
 
 // Периодическая архивация пустых комнат (каждые 2 минуты)
@@ -172,6 +179,10 @@ window.joinRoom = async function() {
         // Проверяем текущий статус комнаты
         if (result.room.status === 'playing') {
             // Игра уже началась, сразу переходим
+            // Создаем предметы локально (с тем же seed что у хоста)
+            if (!itemsInitialized) {
+                createFixedItemsForClient();
+            }
             startNetworkGame();
             showGameScreen();
         } else {

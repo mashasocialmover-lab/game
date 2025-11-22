@@ -15,24 +15,135 @@ import { Item } from './entities/Item.js';
 
 let lastSyncTime = 0;
 let roomSubscription = null;
+let itemsInitialized = false;
+
+// Seeded random для детерминированной генерации
+function seededRandom(seed) {
+    let value = parseInt(seed.replace(/-/g, '').substring(0, 10), 16) || 12345;
+    return function() {
+        value = (value * 9301 + 49297) % 233280;
+        return value / 233280;
+    };
+}
 
 export function init() {
     updateGameArea();
     gameState.particleArray = [];
     gameState.aquarium = new Aquarium(gameState.gameArea.left + 50, gameState.gameArea.bottom - 50);
-    let step = 25;
-    for (let y = gameState.gameArea.top + 20; y < gameState.gameArea.bottom - 20; y += step) {
-        for (let x = gameState.gameArea.left + 20; x < gameState.gameArea.right - 20; x += step) {
-            gameState.particleArray.push(new Item(x, y));
-        }
-    }
     
     // Инициализация синхронизации
     if (networkState.currentRoom) {
         initSync(networkState.currentRoom.id);
         subscribeToRoomChanges();
         setupSyncHandlers();
+        
+        // Предметы будут созданы хостом при старте игры
+        // Не создаем их здесь, чтобы не дублировать
     }
+}
+
+function createFixedItems() {
+    if (!networkState.currentRoom) return;
+    
+    // Используем ID комнаты как seed для детерминированной генерации
+    const seed = networkState.currentRoom.id;
+    const rng = seededRandom(seed);
+    const colors = ['#ff6b6b', '#4ecdc4', '#ffe66d', '#ff9ff3', '#54a0ff', '#5f27cd'];
+    
+    // 20 клубков
+    for (let i = 0; i < 20; i++) {
+        const x = gameState.gameArea.left + 20 + rng() * (gameState.gameArea.width - 40);
+        const y = gameState.gameArea.top + 20 + rng() * (gameState.gameArea.height - 40);
+        const item = new Item(x, y);
+        item.id = 'yarn_' + i;
+        item.type = 'yarn';
+        item.size = 5;
+        item.color = colors[Math.floor(rng() * colors.length)];
+        item.baseX = x;
+        item.baseY = y;
+        // Убираем физику возврата
+        item.returnSpeed = 0;
+        gameState.particleArray.push(item);
+        
+        // Синхронизируем создание (только если игра уже началась)
+        if (networkState.currentRoom.status === 'playing') {
+            syncEntitySpawn('ITEM', x, y, { 
+                entity_id: item.id, 
+                item_type: 'yarn',
+                color: item.color,
+                size: 5
+            });
+        }
+    }
+    
+    // 30 корма
+    for (let i = 0; i < 30; i++) {
+        const x = gameState.gameArea.left + 20 + rng() * (gameState.gameArea.width - 40);
+        const y = gameState.gameArea.top + 20 + rng() * (gameState.gameArea.height - 40);
+        const item = new Item(x, y);
+        item.id = 'food_' + i;
+        item.type = 'food';
+        item.size = 3;
+        item.color = '#8B4513';
+        item.baseX = x;
+        item.baseY = y;
+        // Убираем физику возврата
+        item.returnSpeed = 0;
+        gameState.particleArray.push(item);
+        
+        // Синхронизируем создание (только если игра уже началась)
+        if (networkState.currentRoom.status === 'playing') {
+            syncEntitySpawn('ITEM', x, y, { 
+                entity_id: item.id, 
+                item_type: 'food',
+                size: 3
+            });
+        }
+    }
+}
+
+// Создание предметов для не-хоста (используя тот же seed)
+export function createFixedItemsForClient() {
+    if (!networkState.currentRoom || networkState.isHost) return;
+    
+    // Используем тот же seed что и хост
+    const seed = networkState.currentRoom.id;
+    const rng = seededRandom(seed);
+    const colors = ['#ff6b6b', '#4ecdc4', '#ffe66d', '#ff9ff3', '#54a0ff', '#5f27cd'];
+    
+    // 20 клубков (те же позиции что у хоста)
+    for (let i = 0; i < 20; i++) {
+        const x = gameState.gameArea.left + 20 + rng() * (gameState.gameArea.width - 40);
+        const y = gameState.gameArea.top + 20 + rng() * (gameState.gameArea.height - 40);
+        const item = new Item(x, y);
+        item.id = 'yarn_' + i;
+        item.type = 'yarn';
+        item.size = 5;
+        item.color = colors[Math.floor(rng() * colors.length)];
+        item.baseX = x;
+        item.baseY = y;
+        item.returnSpeed = 0;
+        gameState.particleArray.push(item);
+        gameState.remoteEntities.set(item.id, item);
+    }
+    
+    // 30 корма (те же позиции что у хоста)
+    for (let i = 0; i < 30; i++) {
+        const x = gameState.gameArea.left + 20 + rng() * (gameState.gameArea.width - 40);
+        const y = gameState.gameArea.top + 20 + rng() * (gameState.gameArea.height - 40);
+        const item = new Item(x, y);
+        item.id = 'food_' + i;
+        item.type = 'food';
+        item.size = 3;
+        item.color = '#8B4513';
+        item.baseX = x;
+        item.baseY = y;
+        item.returnSpeed = 0;
+        gameState.particleArray.push(item);
+        gameState.remoteEntities.set(item.id, item);
+    }
+    
+    itemsInitialized = true;
 }
 
 function subscribeToRoomChanges() {
@@ -73,12 +184,15 @@ function setupSyncHandlers() {
 }
 
 function handleRemoteEntityMove(data) {
-    // Обновляем позицию удаленной сущности
+    // Обновляем позицию удаленной сущности (только если не хост)
+    if (networkState.isHost) return; // Хост не получает обновления, он сам источник истины
+    
     let entity = findEntityById(data.entity_id);
     if (entity) {
-        // Интерполяция для плавности
-        entity.x = data.x;
-        entity.y = data.y;
+        // Плавная интерполяция для удаленных сущностей
+        const lerp = 0.3; // Коэффициент интерполяции
+        entity.x += (data.x - entity.x) * lerp;
+        entity.y += (data.y - entity.y) * lerp;
         entity.angle = data.angle;
         entity.vx = data.vx || 0;
         entity.vy = data.vy || 0;
@@ -86,32 +200,60 @@ function handleRemoteEntityMove(data) {
 }
 
 function handleRemoteEntityAction(data) {
+    if (networkState.isHost) return; // Хост не получает обновления
+    
     let entity = findEntityById(data.entity_id);
     if (entity) {
-        // Обработка действий других игроков
-        if (data.action_type === 'attack') {
+        if (data.action_type === 'item_update') {
+            // Обновление предмета
+            if (entity instanceof Item) {
+                const lerp = 0.5;
+                entity.x += (data.x - entity.x) * lerp;
+                entity.y += (data.y - entity.y) * lerp;
+                entity.vx = data.vx || 0;
+                entity.vy = data.vy || 0;
+                entity.eaten = data.eaten || false;
+                entity.size = data.size || entity.size;
+            }
+        } else if (data.action_type === 'attack') {
             // Логика атаки
         }
     }
 }
 
 function handleRemoteEntitySpawn(data) {
-    // Создаем сущность от другого игрока
+    // Создаем сущность от другого игрока или хоста
     let entity = null;
     if (data.entity_type === 'CAT') {
         entity = new Cat(data.x, data.y, data.cat_type || null);
+        entity.id = data.entity_id;
+        if (data.name) entity.name = data.name;
+        gameState.catsArray.push(entity);
     } else if (data.entity_type === 'DOG') {
         entity = new Dog(data.x, data.y);
+        entity.id = data.entity_id;
+        if (data.name) entity.name = data.name;
+        gameState.dogsArray.push(entity);
     } else if (data.entity_type === 'MOUSE') {
         entity = new Mouse(data.x, data.y);
+        entity.id = data.entity_id;
+        if (data.name) entity.name = data.name;
+        gameState.miceArray.push(entity);
+    } else if (data.entity_type === 'ITEM') {
+        // Создаем предмет от хоста
+        entity = new Item(data.x, data.y);
+        entity.id = data.entity_id;
+        entity.type = data.item_type || 'yarn';
+        entity.size = data.size || (data.item_type === 'food' ? 3 : 5);
+        entity.color = data.color || (data.item_type === 'food' ? '#8B4513' : '#ff6b6b');
+        entity.baseX = data.x;
+        entity.baseY = data.y;
+        entity.returnSpeed = 0; // Убираем физику возврата
+        gameState.particleArray.push(entity);
     }
     
     if (entity) {
-        entity.id = data.entity_id;
         gameState.remoteEntities.set(data.entity_id, entity);
-        if (data.entity_type === 'CAT') gameState.catsArray.push(entity);
-        else if (data.entity_type === 'DOG') gameState.dogsArray.push(entity);
-        else if (data.entity_type === 'MOUSE') gameState.miceArray.push(entity);
     }
 }
 
@@ -127,7 +269,8 @@ function findEntityById(id) {
     return gameState.remoteEntities.get(id) || 
            gameState.catsArray.find(e => e.id === id) ||
            gameState.dogsArray.find(e => e.id === id) ||
-           gameState.miceArray.find(e => e.id === id);
+           gameState.miceArray.find(e => e.id === id) ||
+           gameState.particleArray.find(e => e.id === id);
 }
 
 export function animate() {
@@ -142,18 +285,47 @@ export function animate() {
     ctx.strokeRect(gameState.gameArea.left, gameState.gameArea.top, gameState.gameArea.width, gameState.gameArea.height);
     ctx.setLineDash([]);
     
-    // Синхронизация позиции нашего персонажа
-    if (gameState.playerEntity && networkState.isConnected) {
+    // Синхронизация всех сущностей (только хост отправляет полное состояние)
+    if (networkState.isConnected) {
         const now = Date.now();
         if (now - lastSyncTime > SYNC_INTERVAL) {
-            syncEntityPosition(
-                gameState.playerEntity.id,
-                gameState.playerEntity.x,
-                gameState.playerEntity.y,
-                gameState.playerEntity.angle,
-                gameState.playerEntity.vx || 0,
-                gameState.playerEntity.vy || 0
-            );
+            if (networkState.isHost) {
+                // Хост синхронизирует все сущности
+                gameState.catsArray.forEach(cat => {
+                    syncEntityPosition(cat.id, cat.x, cat.y, cat.angle, cat.vx || 0, cat.vy || 0);
+                });
+                gameState.dogsArray.forEach(dog => {
+                    syncEntityPosition(dog.id, dog.x, dog.y, dog.angle, dog.vx || 0, dog.vy || 0);
+                });
+                gameState.miceArray.forEach(mouse => {
+                    syncEntityPosition(mouse.id, mouse.x, mouse.y, mouse.angle, mouse.vx || 0, mouse.vy || 0);
+                });
+                // Синхронизируем предметы (позиция и состояние)
+                gameState.particleArray.forEach(item => {
+                    if (item.id) {
+                        syncEntityAction(item.id, 'item_update', {
+                            x: item.x,
+                            y: item.y,
+                            vx: item.vx || 0,
+                            vy: item.vy || 0,
+                            eaten: item.eaten,
+                            size: item.size
+                        });
+                    }
+                });
+            } else {
+                // Остальные игроки синхронизируют только своего персонажа
+                if (gameState.playerEntity) {
+                    syncEntityPosition(
+                        gameState.playerEntity.id,
+                        gameState.playerEntity.x,
+                        gameState.playerEntity.y,
+                        gameState.playerEntity.angle,
+                        gameState.playerEntity.vx || 0,
+                        gameState.playerEntity.vy || 0
+                    );
+                }
+            }
             lastSyncTime = now;
         }
     }
@@ -199,39 +371,66 @@ export function animate() {
     
     allObjects.forEach(obj => {
         if (obj instanceof Cat) {
+            // Обновляем только на хосте или если это наш персонаж
+            if (networkState.isHost || obj.isPlayer || !gameState.remoteEntities.has(obj.id)) {
+                obj.update();
+            }
             obj.draw();
-            obj.update();
             if (obj.markedForDeletion) {
                 gameState.catsArray = gameState.catsArray.filter(c => c.id !== obj.id);
+                gameState.remoteEntities.delete(obj.id);
                 if (gameState.playerEntity && gameState.playerEntity.id === obj.id) {
                     gameState.playerEntity = null;
+                }
+                if (networkState.isHost) {
                     syncEntityDelete(obj.id);
                 }
             }
         }
         else if (obj instanceof Dog) {
+            // Обновляем только на хосте или если это наш персонаж
+            if (networkState.isHost || obj.isPlayer || !gameState.remoteEntities.has(obj.id)) {
+                obj.update();
+            }
             obj.draw();
-            obj.update();
             if (obj.markedForDeletion) {
                 gameState.dogsArray = gameState.dogsArray.filter(d => d.id !== obj.id);
+                gameState.remoteEntities.delete(obj.id);
                 if (gameState.playerEntity && gameState.playerEntity.id === obj.id) {
                     gameState.playerEntity = null;
+                }
+                if (networkState.isHost) {
                     syncEntityDelete(obj.id);
                 }
             }
         }
         else if (obj instanceof Mouse) {
+            // Обновляем только на хосте
+            if (networkState.isHost) {
+                obj.update();
+            }
             obj.draw();
-            obj.update();
             if (obj.markedForDeletion) {
                 gameState.miceArray = gameState.miceArray.filter(m => m.id !== obj.id);
+                gameState.remoteEntities.delete(obj.id);
+                if (networkState.isHost) {
+                    syncEntityDelete(obj.id);
+                }
             }
         }
         else if (obj instanceof Aquarium) {
             obj.draw();
+        } else if (obj instanceof Item) {
+            // Предметы обновляются только на хосте
+            if (networkState.isHost) {
+                obj.update();
+            }
+            obj.draw();
         } else {
             obj.draw();
-            obj.update();
+            if (networkState.isHost || !gameState.remoteEntities.has(obj.id)) {
+                obj.update();
+            }
         }
     });
     
@@ -266,6 +465,15 @@ export function startNetworkGame() {
         networkState.currentRoom.status = 'playing';
         initSync(networkState.currentRoom.id);
         setupSyncHandlers();
+        
+        // Хост создает предметы при старте игры
+        if (networkState.isHost && !itemsInitialized) {
+            createFixedItems();
+            itemsInitialized = true;
+        } else if (!networkState.isHost && !itemsInitialized) {
+            // Не-хост создает предметы локально (с тем же seed)
+            createFixedItemsForClient();
+        }
     }
 }
 
