@@ -46,16 +46,20 @@ export async function createRoom(roomName) {
 // Присоединение к комнате
 export async function joinRoom(roomCode) {
     try {
-        // Находим комнату по коду
+        // Находим комнату по коду (разрешаем присоединяться даже если игра началась)
         const { data: room, error: roomError } = await supabase
             .from('rooms')
             .select('*')
             .eq('code', roomCode.toUpperCase())
-            .eq('status', 'waiting')
             .single();
 
         if (roomError || !room) {
-            throw new Error('Комната не найдена или игра уже началась');
+            throw new Error('Комната не найдена');
+        }
+        
+        // Проверяем статус комнаты
+        if (room.status === 'archived') {
+            throw new Error('Комната архивирована');
         }
 
         if (room.current_players >= room.max_players) {
@@ -196,7 +200,8 @@ export function subscribeToRoom(roomId, callback) {
             if (payload.new) {
                 networkState.currentRoom = payload.new;
             }
-            callback(payload);
+            // Добавляем поле table для удобства
+            callback({ ...payload, table: 'rooms' });
         })
         .on('postgres_changes', {
             event: '*',
@@ -205,8 +210,68 @@ export function subscribeToRoom(roomId, callback) {
             filter: 'room_id=eq.' + roomId
         }, async (payload) => {
             await getRoomPlayers(roomId);
-            callback(payload);
+            // Добавляем поле table для удобства
+            callback({ ...payload, table: 'players' });
         })
         .subscribe();
+}
+
+// Архивация пустых комнат
+export async function archiveEmptyRooms() {
+    try {
+        // Находим комнаты без игроков старше 5 минут
+        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+        
+        const { data: emptyRooms, error } = await supabase
+            .from('rooms')
+            .select('id, created_at')
+            .eq('status', 'waiting')
+            .lt('created_at', fiveMinutesAgo);
+        
+        if (error) throw error;
+        
+        if (emptyRooms && emptyRooms.length > 0) {
+            for (const room of emptyRooms) {
+                // Проверяем есть ли игроки в комнате
+                const { data: players } = await supabase
+                    .from('players')
+                    .select('id')
+                    .eq('room_id', room.id)
+                    .limit(1);
+                
+                if (!players || players.length === 0) {
+                    // Архивируем комнату
+                    await supabase
+                        .from('rooms')
+                        .update({ status: 'archived' })
+                        .eq('id', room.id);
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Ошибка архивации комнат:', error);
+    }
+}
+
+// Обновление имени игрока
+export async function updatePlayerName(newName) {
+    if (!networkState.currentRoom || !newName || newName.trim() === '') return false;
+    
+    try {
+        const { error } = await supabase
+            .from('players')
+            .update({ player_name: newName.trim() })
+            .eq('room_id', networkState.currentRoom.id)
+            .eq('player_id', networkState.playerId);
+        
+        if (error) throw error;
+        
+        networkState.playerName = newName.trim();
+        localStorage.setItem('playerName', newName.trim());
+        return true;
+    } catch (error) {
+        console.error('Ошибка обновления имени:', error);
+        return false;
+    }
 }
 

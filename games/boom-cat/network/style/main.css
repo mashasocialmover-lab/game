@@ -42,6 +42,8 @@ canvas { display: block; }
     height: 100vh;
     color: white;
     text-align: center;
+    padding: 20px;
+    box-sizing: border-box;
 }
 
 .menu-container h1 {
@@ -79,6 +81,26 @@ canvas { display: block; }
     font-size: 16px;
     background: rgba(255,255,255,0.9);
     box-sizing: border-box;
+}
+
+.menu-section input:focus {
+    outline: none;
+    border-color: #4db8ff;
+}
+
+/* Код комнаты вверху */
+#roomCodeHeader {
+    animation: fadeIn 0.3s ease-in;
+}
+
+#roomCodeDisplay:hover {
+    transform: scale(1.05);
+    transition: transform 0.2s;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 .menu-section input:focus {

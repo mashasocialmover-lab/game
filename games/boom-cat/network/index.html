@@ -12,6 +12,21 @@
 <div id="menuScreen" class="screen">
     <div class="menu-container">
         <h1>🐱🐶 Сетевая игра</h1>
+        <!-- Код комнаты вверху (скрыт по умолчанию) -->
+        <div id="roomCodeHeader" style="display: none; margin-bottom: 20px; text-align: center;">
+            <div style="display: flex; align-items: center; justify-content: center; gap: 10px;">
+                <span style="color: white; font-size: 18px;">Код комнаты:</span>
+                <span id="roomCodeDisplay" style="font-size: 32px; font-weight: bold; letter-spacing: 4px; color: #4db8ff; background: rgba(0,0,0,0.5); padding: 10px 20px; border-radius: 8px; cursor: pointer; border: 2px solid #4db8ff;" onclick="copyRoomLink()" title="Нажмите чтобы скопировать ссылку"></span>
+            </div>
+        </div>
+        <!-- Имя игрока -->
+        <div style="margin-bottom: 20px; text-align: center;">
+            <div style="display: flex; align-items: center; justify-content: center; gap: 10px;">
+                <span style="color: white; font-size: 16px;">Ваше имя:</span>
+                <input type="text" id="playerNameInput" style="padding: 8px; border: 2px solid #555; border-radius: 5px; font-size: 16px; background: rgba(255,255,255,0.9); max-width: 200px;" maxlength="20">
+                <button class="btn btn-primary" onclick="changePlayerName()" style="padding: 8px 16px; font-size: 14px;">Изменить</button>
+            </div>
+        </div>
         <div class="menu-buttons">
             <div class="menu-section">
                 <h2>Создать комнату</h2>
@@ -30,7 +45,11 @@
 <!-- Экран комнаты -->
 <div id="roomScreen" class="screen" style="display: none;">
     <div class="room-container">
-        <h2>Комната: <span id="roomCode"></span></h2>
+        <h2>Код комнаты:</h2>
+        <div style="display: flex; align-items: center; justify-content: center; gap: 10px; margin: 20px 0;">
+            <span id="roomCode" style="font-size: 48px; font-weight: bold; letter-spacing: 8px; color: #4db8ff; background: rgba(0,0,0,0.5); padding: 20px 40px; border-radius: 10px; border: 3px solid #4db8ff; cursor: pointer;" onclick="copyRoomLink()" title="Нажмите чтобы скопировать ссылку"></span>
+            <button class="btn btn-primary" onclick="copyRoomLink()" style="height: fit-content; padding: 15px 20px;">📋 Копировать ссылку</button>
+        </div>
         <div id="connectionStatus" class="status">🔴 Отключено</div>
         <div class="players-section">
             <h3>Игроки:</h3>
