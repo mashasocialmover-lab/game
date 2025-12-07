@@ -136,13 +136,6 @@ export function spawnMyPlayer(characterType) {
     }, 1000);
 }
 
-// Запрос информации о других игроках
-function requestOtherPlayersSpawn() {
-    import('./syncManager.js').then(({ sendGameEventViaWebRTC }) => {
-        sendGameEventViaWebRTC('request_spawn', {});
-    });
-}
-
 // Обновление игры
 function update() {
     if (!gameState.isPlaying) return;
