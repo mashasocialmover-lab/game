@@ -192,17 +192,21 @@ window.readyToPlay = function() {
         return;
     }
     
+    console.log('Готов играть, выбран персонаж:', selectedCharacterType);
+    
     // Спавним персонажа
     spawnMyPlayer(selectedCharacterType);
     
-        // Если игра уже началась, сразу переходим к игре
-        if (networkState.currentRoom.status === 'playing') {
-            startGameLoop();
-            showScreen('gameScreen');
-        } else {
-            // Показываем экран комнаты и ждем старта
-            showScreen('roomScreen');
-        }
+    // Если игра уже началась, сразу переходим к игре
+    if (networkState.currentRoom.status === 'playing') {
+        console.log('Игра уже началась, запускаем игровой цикл');
+        startGameLoop();
+        showScreen('gameScreen');
+    } else {
+        // Показываем экран комнаты и ждем старта
+        console.log('Ожидаем старта игры');
+        showScreen('roomScreen');
+    }
 };
 
 // Начать игру (только для хоста)

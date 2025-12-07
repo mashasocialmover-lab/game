@@ -143,7 +143,13 @@ async function createPeerAsAnswerer(fromPlayerId, offerData) {
 // Настройка peer соединения
 function setupPeer(peer, targetPlayerId) {
     peer.on('connect', () => {
-        console.log('WebRTC соединение установлено с игроком:', targetPlayerId);
+        console.log('✅ WebRTC соединение установлено с игроком:', targetPlayerId);
+        // При установке соединения запрашиваем информацию о других игроках
+        setTimeout(() => {
+            import('./syncManager.js').then(({ requestOtherPlayersSpawn }) => {
+                requestOtherPlayersSpawn();
+            });
+        }, 500);
     });
 
     peer.on('data', (data) => {

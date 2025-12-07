@@ -66,6 +66,11 @@ export function syncPlayerSpawn(playerId, playerName, x, y, characterType) {
     });
 }
 
+// Запрос спавна других игроков
+export function requestOtherPlayersSpawn() {
+    sendGameEventViaWebRTC('request_spawn', {});
+}
+
 // Остановка синхронизации
 export function stopSync() {
     syncCallbacks = [];

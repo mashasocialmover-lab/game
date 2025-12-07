@@ -3,7 +3,7 @@ import { gameState } from './gameState.js';
 import { networkState } from './networkState.js';
 import { updateGameArea } from './gameArea.js';
 import { Player } from './Player.js';
-import { syncPlayerPosition, syncPlayerSpawn, onGameEvent, initSync, stopSync } from './syncManager.js';
+import { syncPlayerPosition, syncPlayerSpawn, requestOtherPlayersSpawn, onGameEvent, initSync, stopSync } from './syncManager.js';
 import { getRoomPlayers, subscribeToRoom } from './roomManager.js';
 import { initWebRTC } from './webrtcManager.js';
 
@@ -42,10 +42,23 @@ function subscribeToRoomChanges() {
 // Настройка обработчиков синхронизации
 function setupSyncHandlers() {
     onGameEvent((event) => {
+        console.log('Получено игровое событие:', event);
         if (event.event_type === 'player_move') {
             handleRemotePlayerMove(event.event_data);
         } else if (event.event_type === 'player_spawn') {
             handleRemotePlayerSpawn(event.event_data);
+        } else if (event.event_type === 'request_spawn') {
+            // Запрос на отправку информации о нашем персонаже
+            if (networkState.myPlayerId && gameState.players.has(networkState.myPlayerId)) {
+                const myPlayer = gameState.players.get(networkState.myPlayerId);
+                syncPlayerSpawn(
+                    networkState.myPlayerId,
+                    networkState.playerName,
+                    myPlayer.x,
+                    myPlayer.y,
+                    networkState.selectedCharacter
+                );
+            }
         }
     });
 }
@@ -56,10 +69,13 @@ function handleRemotePlayerMove(data) {
     if (player) {
         // Интерполяция позиции для плавности
         const lerp = 0.3;
-        player.x += (data.x - player.x) * lerp;
-        player.y += (data.y - player.y) * lerp;
+        if (data.x !== undefined) player.x += (data.x - player.x) * lerp;
+        if (data.y !== undefined) player.y += (data.y - player.y) * lerp;
         player.vx = data.vx || 0;
         player.vy = data.vy || 0;
+    } else {
+        // Если игрока нет, но пришло движение - возможно нужно запросить спавн
+        console.log('Получено движение от неизвестного игрока:', data.player_id);
     }
 }
 
@@ -68,16 +84,24 @@ function handleRemotePlayerSpawn(data) {
     // Игнорируем свой спавн
     if (data.player_id === networkState.playerId) return;
     
-    // Создаем игрока если его еще нет
+    console.log('Получен спавн удаленного игрока:', data);
+    
+    // Создаем игрока если его еще нет, или обновляем существующего
     if (!gameState.players.has(data.player_id)) {
         const player = new Player(
             data.player_id,
             data.player_name,
-            data.x,
-            data.y,
-            data.character_type
+            data.x || gameState.gameArea.left + 100,
+            data.y || gameState.gameArea.top + 100,
+            data.character_type || 'cat'
         );
         gameState.players.set(data.player_id, player);
+        console.log('Создан игрок:', data.player_id, data.player_name);
+    } else {
+        // Обновляем позицию существующего игрока
+        const player = gameState.players.get(data.player_id);
+        if (data.x !== undefined) player.x = data.x;
+        if (data.y !== undefined) player.y = data.y;
     }
 }
 
@@ -101,8 +125,22 @@ export function spawnMyPlayer(characterType) {
     networkState.myPlayerId = networkState.playerId;
     networkState.selectedCharacter = characterType;
     
+    console.log('Спавн нашего персонажа:', networkState.playerId, x, y, characterType);
+    
     // Синхронизируем спавн с другими игроками
     syncPlayerSpawn(networkState.playerId, networkState.playerName, x, y, characterType);
+    
+    // Запрашиваем информацию о других игроках (с небольшой задержкой для установки соединений)
+    setTimeout(() => {
+        requestOtherPlayersSpawn();
+    }, 1000);
+}
+
+// Запрос информации о других игроках
+function requestOtherPlayersSpawn() {
+    import('./syncManager.js').then(({ sendGameEventViaWebRTC }) => {
+        sendGameEventViaWebRTC('request_spawn', {});
+    });
 }
 
 // Обновление игры
@@ -173,10 +211,20 @@ function gameLoop() {
 
 // Начать игровой цикл
 export function startGameLoop() {
-    if (gameState.isPlaying) return;
+    if (gameState.isPlaying) {
+        console.log('Игра уже запущена');
+        return;
+    }
     
+    console.log('Запуск игрового цикла, игроков:', gameState.players.size);
     gameState.isPlaying = true;
     gameLoop();
+    
+    // Запрашиваем информацию о других игроках после небольшой задержки
+    setTimeout(() => {
+        requestOtherPlayersSpawn();
+        console.log('Запрошена информация о других игроках');
+    }, 500);
 }
 
 // Остановить игру
