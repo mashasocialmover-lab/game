@@ -113,11 +113,22 @@ function handleRemotePlayerSpawn(data) {
 
 // Спавн нашего персонажа
 export function spawnMyPlayer(characterType) {
-    if (!networkState.currentRoom) return;
+    if (!networkState.currentRoom) {
+        console.error('❌ Нет текущей комнаты для спавна');
+        return;
+    }
     
     // Случайная позиция в игровой области
     const x = gameState.gameArea.left + Math.random() * gameState.gameArea.width;
     const y = gameState.gameArea.top + Math.random() * gameState.gameArea.height;
+    
+    console.log('🎮 Спавн нашего персонажа:', {
+        id: networkState.playerId,
+        name: networkState.playerName,
+        x: x.toFixed(0),
+        y: y.toFixed(0),
+        type: characterType
+    });
     
     const player = new Player(
         networkState.playerId,
@@ -131,15 +142,16 @@ export function spawnMyPlayer(characterType) {
     networkState.myPlayerId = networkState.playerId;
     networkState.selectedCharacter = characterType;
     
-    console.log('Спавн нашего персонажа:', networkState.playerId, x, y, characterType);
+    console.log('✅ Персонаж создан локально, игроков в игре:', gameState.players.size);
     
     // Синхронизируем спавн с другими игроками
     syncPlayerSpawn(networkState.playerId, networkState.playerName, x, y, characterType);
     
     // Запрашиваем информацию о других игроках (с небольшой задержкой для установки соединений)
     setTimeout(() => {
+        console.log('📤 Запрашиваем информацию о других игроках...');
         requestOtherPlayersSpawn();
-    }, 1000);
+    }, 2000);
 }
 
 // Обновление игры

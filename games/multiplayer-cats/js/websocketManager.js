@@ -18,17 +18,21 @@ export function initPeerJS(roomId) {
         }
         
         // Проверяем что Peer доступен глобально
-        if (typeof Peer === 'undefined') {
+        const PeerToUse = window.Peer;
+        if (!PeerToUse) {
             const error = new Error('PeerJS не загружен! Проверьте подключение библиотеки.');
             console.error('❌', error.message);
+            console.error('Проверка window.Peer:', typeof window.Peer);
+            console.error('Проверка window:', Object.keys(window).filter(k => k.toLowerCase().includes('peer')));
             reject(error);
             return;
         }
         
         console.log('📡 Создание Peer с ID:', networkState.playerId);
+        console.log('📚 PeerJS класс найден:', typeof PeerToUse);
         
         // Используем playerId как peerId для PeerJS
-        peer = new Peer(networkState.playerId, {
+        peer = new PeerToUse(networkState.playerId, {
             host: '0.peerjs.com',
             port: 443,
             path: '/',

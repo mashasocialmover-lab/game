@@ -117,9 +117,15 @@ export async function getRoomPlayers(roomId) {
 
         networkState.connectedPlayers = data || [];
         
+        console.log('👥 Получен список игроков:', data.length);
+        data.forEach(p => console.log('  -', p.player_id, p.player_name, p.is_host ? '(хост)' : ''));
+        
         // Устанавливаем WebRTC соединения с другими игроками
         if (data && data.length > 1) {
+            console.log('🔗 Начинаем подключение к другим игрокам...');
             await connectToAllPlayers(data);
+        } else {
+            console.log('ℹ️ В комнате только один игрок, ждем других...');
         }
         
         return data || [];
