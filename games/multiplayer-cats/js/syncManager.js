@@ -1,11 +1,13 @@
 // Менеджер синхронизации через Supabase Realtime
 import { networkState } from './networkState.js';
 import { supabase } from './supabaseClient.js';
-import { SYNC_INTERVAL } from './config.js';
+import { SYNC_INTERVAL, BATCH_INTERVAL, MAX_BATCH_SIZE } from './config.js';
 
 let lastSyncTime = 0;
 let syncCallbacks = [];
 let gameChannel = null;
+let eventBatch = [];
+let lastBatchTime = 0;
 
 // Инициализация синхронизации
 export function initSync(roomId) {
@@ -37,7 +39,7 @@ function setupSupabaseRealtimeSync(roomId) {
         });
 }
 
-// Отправка события через Supabase Realtime
+// Отправка события через Supabase Realtime (с батчингом)
 function sendGameEvent(eventType, eventData) {
     if (!gameChannel) {
         console.warn('Game channel не готов');
@@ -51,17 +53,53 @@ function sendGameEvent(eventType, eventData) {
         timestamp: Date.now()
     };
     
+    // Важные события (спавн, запросы) отправляем сразу
+    if (eventType === 'player_spawn' || eventType === 'request_spawn') {
+        gameChannel.send({
+            type: 'broadcast',
+            event: 'game_event',
+            payload: event
+        }).then(() => {
+            console.log('📤 Отправлено событие:', eventType);
+        }).catch((error) => {
+            console.error('❌ Ошибка отправки события:', error);
+        });
+        return true;
+    }
+    
+    // Позиции батчим для снижения нагрузки
+    eventBatch.push(event);
+    
+    const currentTime = Date.now();
+    const shouldFlush = 
+        eventBatch.length >= MAX_BATCH_SIZE || 
+        (currentTime - lastBatchTime >= BATCH_INTERVAL);
+    
+    if (shouldFlush) {
+        flushBatch();
+    }
+    
+    return true;
+}
+
+// Отправка батча событий
+function flushBatch() {
+    if (eventBatch.length === 0 || !gameChannel) return;
+    
+    // Отправляем все события одним батчем
+    const batch = [...eventBatch];
+    eventBatch = [];
+    lastBatchTime = Date.now();
+    
+    // Отправляем последнее событие (самое актуальное)
+    const lastEvent = batch[batch.length - 1];
     gameChannel.send({
         type: 'broadcast',
         event: 'game_event',
-        payload: event
-    }).then(() => {
-        console.log('📤 Отправлено событие:', eventType);
+        payload: lastEvent
     }).catch((error) => {
-        console.error('❌ Ошибка отправки события:', error);
+        console.error('❌ Ошибка отправки батча:', error);
     });
-    
-    return true;
 }
 
 // Обработка игрового события от другого игрока
@@ -127,10 +165,19 @@ export function requestOtherPlayersSpawn() {
 
 // Остановка синхронизации
 export function stopSync() {
+    // Отправляем оставшиеся события перед остановкой
+    flushBatch();
+    
     syncCallbacks = [];
     if (gameChannel) {
         supabase.removeChannel(gameChannel);
         gameChannel = null;
     }
+    eventBatch = [];
+}
+
+// Принудительная отправка батча (для использования при закрытии страницы)
+export function flushPendingEvents() {
+    flushBatch();
 }
 
