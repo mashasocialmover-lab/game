@@ -14,8 +14,9 @@ export const networkState = {
 export function generatePlayerId() {
     let playerId = localStorage.getItem('playerId');
     if (!playerId) {
-        // PeerJS требует короткие ID, используем только случайную строку
-        playerId = Math.random().toString(36).substr(2, 9) + Date.now().toString(36).substr(-6);
+        // PeerJS требует ОЧЕНЬ короткие ID (максимум 16 символов)
+        // Используем только случайную строку без префиксов
+        playerId = Math.random().toString(36).substr(2, 10) + Date.now().toString(36).substr(-4);
         localStorage.setItem('playerId', playerId);
     }
     return playerId;

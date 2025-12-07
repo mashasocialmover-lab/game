@@ -66,17 +66,22 @@ function createPeer(PeerToUse, resolve, reject) {
         resolve(id);
     });
     
-    peer.on('error', (error) => {
-        console.error('❌ PeerJS ошибка:', error);
-        console.error('Тип ошибки:', error.type);
-        console.error('Сообщение:', error.message);
-        // Не reject сразу, некоторые ошибки не критичны
-        if (error.type === 'peer-unavailable' || error.type === 'network') {
-            console.warn('⚠️ Продолжаем несмотря на ошибку');
-        } else {
-            reject(error);
-        }
-    });
+        peer.on('error', (error) => {
+            console.error('❌ PeerJS ошибка:', error);
+            console.error('Тип ошибки:', error.type);
+            console.error('Сообщение:', error.message);
+            
+            // Некоторые ошибки не критичны - продолжаем работу
+            if (error.type === 'peer-unavailable') {
+                console.warn('⚠️ Peer недоступен, но продолжаем работу');
+                // Не reject, чтобы не ломать игру
+            } else if (error.type === 'network' || error.type === 'server-error') {
+                console.warn('⚠️ Проблема с сетью, но продолжаем');
+            } else {
+                // Критические ошибки
+                reject(error);
+            }
+        });
     
     // Ожидаем входящие соединения
     peer.on('connection', (conn) => {
@@ -88,31 +93,65 @@ function createPeer(PeerToUse, resolve, reject) {
     console.log('⏳ Ожидание подключения PeerJS...');
 }
 
-// Установка соединения с другим игроком
-export function connectToPlayer(targetPlayerId) {
+// Установка соединения с другим игроком (с retry)
+let connectionAttempts = new Map(); // Map<playerId, attempts>
+
+export function connectToPlayer(targetPlayerId, retryCount = 0) {
     if (!peer || !peer.open) {
-        console.error('Peer не готов');
+        console.error('❌ Peer не готов, попытка:', retryCount);
+        if (retryCount < 3) {
+            setTimeout(() => connectToPlayer(targetPlayerId, retryCount + 1), 1000);
+        }
         return;
     }
     
     if (connections.has(targetPlayerId)) {
-        console.log('Соединение уже существует с:', targetPlayerId);
+        console.log('✅ Соединение уже существует с:', targetPlayerId);
         return;
     }
     
-    console.log('🔗 Подключение к игроку:', targetPlayerId);
-    const conn = peer.connect(targetPlayerId, {
-        reliable: true
-    });
+    // Проверяем количество попыток
+    const attempts = connectionAttempts.get(targetPlayerId) || 0;
+    if (attempts > 5) {
+        console.warn('⚠️ Превышено количество попыток подключения к:', targetPlayerId);
+        return;
+    }
+    connectionAttempts.set(targetPlayerId, attempts + 1);
     
-    setupConnection(conn, targetPlayerId);
+    console.log('🔗 Подключение к игроку:', targetPlayerId, `(попытка ${attempts + 1})`);
+    
+    try {
+        const conn = peer.connect(targetPlayerId, {
+            reliable: true,
+            serialization: 'json'
+        });
+        
+        setupConnection(conn, targetPlayerId, retryCount);
+    } catch (error) {
+        console.error('❌ Ошибка создания соединения:', error);
+        if (retryCount < 3) {
+            setTimeout(() => connectToPlayer(targetPlayerId, retryCount + 1), 2000);
+        }
+    }
 }
 
 // Настройка соединения
-function setupConnection(conn, playerId) {
+function setupConnection(conn, playerId, retryCount = 0) {
+    const timeout = setTimeout(() => {
+        if (!conn.open) {
+            console.warn('⏱️ Таймаут подключения к', playerId);
+            if (retryCount < 3) {
+                console.log('🔄 Повторная попытка подключения...');
+                setTimeout(() => connectToPlayer(playerId, retryCount + 1), 2000);
+            }
+        }
+    }, 10000); // 10 секунд таймаут
+    
     conn.on('open', () => {
+        clearTimeout(timeout);
         console.log('✅ Соединение установлено с:', playerId);
         connections.set(playerId, conn);
+        connectionAttempts.delete(playerId); // Сбрасываем счетчик при успехе
         
         // Запрашиваем информацию о других игроках
         setTimeout(() => {
@@ -137,10 +176,18 @@ function setupConnection(conn, playerId) {
     conn.on('close', () => {
         console.log('🔌 Соединение закрыто с:', playerId);
         connections.delete(playerId);
+        clearTimeout(timeout);
     });
     
     conn.on('error', (error) => {
-        console.error('Ошибка соединения с', playerId, ':', error);
+        console.error('❌ Ошибка соединения с', playerId, ':', error);
+        clearTimeout(timeout);
+        
+        // Retry при ошибке подключения
+        if (retryCount < 3 && error.type !== 'peer-unavailable') {
+            console.log('🔄 Повторная попытка через 3 секунды...');
+            setTimeout(() => connectToPlayer(playerId, retryCount + 1), 3000);
+        }
     });
 }
 
@@ -239,7 +286,7 @@ export async function connectToAllPlayers(players) {
         console.log('🏠 Хост: подключаемся ко всем игрокам');
         for (const player of players) {
             if (player.player_id !== networkState.playerId) {
-                const delay = Math.random() * 500;
+                const delay = Math.random() * 1000 + 500; // 500-1500мс задержка
                 console.log(`⏱️ Подключение к ${player.player_id} через ${delay.toFixed(0)}мс`);
                 setTimeout(() => {
                     connectToPlayer(player.player_id);
@@ -251,9 +298,10 @@ export async function connectToAllPlayers(players) {
         const host = players.find(p => p.is_host);
         if (host && host.player_id !== networkState.playerId) {
             console.log('👤 Клиент: подключаемся к хосту', host.player_id);
+            // Даем время хосту инициализироваться
             setTimeout(() => {
                 connectToPlayer(host.player_id);
-            }, 200);
+            }, 1000);
         } else {
             console.warn('⚠️ Хост не найден или это мы сами');
         }
