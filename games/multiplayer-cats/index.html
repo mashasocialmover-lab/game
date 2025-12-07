@@ -23,12 +23,12 @@
             <div class="menu-section">
                 <h2>Создать комнату</h2>
                 <input type="text" id="roomNameInput" placeholder="Название комнаты" maxlength="30">
-                <button class="btn btn-primary" onclick="createRoom()">Создать</button>
+                <button class="btn btn-primary" id="createRoomBtn">Создать</button>
             </div>
             <div class="menu-section">
                 <h2>Присоединиться</h2>
                 <input type="text" id="roomCodeInput" placeholder="Код комнаты" maxlength="6" style="text-transform: uppercase;">
-                <button class="btn btn-primary" onclick="joinRoom()">Присоединиться</button>
+                <button class="btn btn-primary" id="joinRoomBtn">Присоединиться</button>
             </div>
         </div>
     </div>
@@ -39,16 +39,16 @@
     <div class="character-selector">
         <h2>Выберите персонажа</h2>
         <div class="character-options">
-            <div class="character-option" onclick="selectCharacter('cat')" id="catOption">
+            <div class="character-option" id="catOption">
                 <div class="icon">🐱</div>
                 <div class="name">Кот</div>
             </div>
-            <div class="character-option" onclick="selectCharacter('dog')" id="dogOption">
+            <div class="character-option" id="dogOption">
                 <div class="icon">🐶</div>
                 <div class="name">Собака</div>
             </div>
         </div>
-        <button class="btn btn-success" id="readyBtn" onclick="readyToPlay()" style="display: none; margin-top: 20px;">Готов играть</button>
+        <button class="btn btn-success" id="readyBtn" style="display: none; margin-top: 20px;">Готов играть</button>
     </div>
 </div>
 
@@ -63,8 +63,8 @@
             <ul class="players-list" id="playersList"></ul>
         </div>
         <div style="margin-top: 20px;">
-            <button class="btn btn-success" id="startGameBtn" onclick="startGame()" style="display: none;">Начать игру</button>
-            <button class="btn btn-danger" onclick="leaveRoom()">Покинуть комнату</button>
+            <button class="btn btn-success" id="startGameBtn" style="display: none;">Начать игру</button>
+            <button class="btn btn-danger" id="leaveRoomBtn">Покинуть комнату</button>
         </div>
     </div>
 </div>
@@ -75,7 +75,7 @@
     <div style="position: absolute; top: 20px; left: 20px; background: rgba(0,0,0,0.7); padding: 10px; border-radius: 5px;">
         <div>Игроков: <span id="playersCount">0</span></div>
         <div style="margin-top: 10px;">
-            <button class="btn btn-danger" onclick="leaveRoom()">Выйти</button>
+            <button class="btn btn-danger" id="leaveGameBtn">Выйти</button>
         </div>
     </div>
 </div>

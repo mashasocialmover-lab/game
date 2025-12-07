@@ -234,6 +234,93 @@ window.leaveRoom = async function() {
     networkState.myPlayerId = null;
 };
 
+// Настройка обработчиков событий для кнопок
+document.addEventListener('DOMContentLoaded', () => {
+    // Кнопки меню
+    const createRoomBtn = document.getElementById('createRoomBtn');
+    const joinRoomBtn = document.getElementById('joinRoomBtn');
+    
+    if (createRoomBtn) {
+        createRoomBtn.addEventListener('click', () => {
+            if (window.createRoom) {
+                window.createRoom();
+            } else {
+                console.error('createRoom не определена');
+            }
+        });
+    }
+    
+    if (joinRoomBtn) {
+        joinRoomBtn.addEventListener('click', () => {
+            if (window.joinRoom) {
+                window.joinRoom();
+            } else {
+                console.error('joinRoom не определена');
+            }
+        });
+    }
+    
+    // Кнопка готов играть
+    const readyBtn = document.getElementById('readyBtn');
+    if (readyBtn) {
+        readyBtn.addEventListener('click', () => {
+            if (window.readyToPlay) {
+                window.readyToPlay();
+            }
+        });
+    }
+    
+    // Кнопка начать игру
+    const startGameBtn = document.getElementById('startGameBtn');
+    if (startGameBtn) {
+        startGameBtn.addEventListener('click', () => {
+            if (window.startGame) {
+                window.startGame();
+            }
+        });
+    }
+    
+    // Кнопки выхода
+    const leaveRoomBtn = document.getElementById('leaveRoomBtn');
+    const leaveGameBtn = document.getElementById('leaveGameBtn');
+    
+    if (leaveRoomBtn) {
+        leaveRoomBtn.addEventListener('click', () => {
+            if (window.leaveRoom) {
+                window.leaveRoom();
+            }
+        });
+    }
+    
+    if (leaveGameBtn) {
+        leaveGameBtn.addEventListener('click', () => {
+            if (window.leaveRoom) {
+                window.leaveRoom();
+            }
+        });
+    }
+    
+    // Выбор персонажа
+    const catOption = document.getElementById('catOption');
+    const dogOption = document.getElementById('dogOption');
+    
+    if (catOption) {
+        catOption.addEventListener('click', () => {
+            if (window.selectCharacter) {
+                window.selectCharacter('cat');
+            }
+        });
+    }
+    
+    if (dogOption) {
+        dogOption.addEventListener('click', () => {
+            if (window.selectCharacter) {
+                window.selectCharacter('dog');
+            }
+        });
+    }
+});
+
 // Инициализация игры
 init();
 
