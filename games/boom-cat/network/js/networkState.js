@@ -37,3 +37,4 @@ export function initNetworkState() {
     networkState.playerName = getPlayerName();
 }
 
+

@@ -4,3 +4,4 @@ export const DOG_NAMES = ["Рекс", "Шарик", "Бобик", "Мухтар"
 export const MOUSE_NAMES = ["Джерри", "Пик", "Микки", "Шустрик", "Зернышко", "Хвост", "Стюарт", "Крош"];
 export const COOLDOWN_MS = 1000;
 
+

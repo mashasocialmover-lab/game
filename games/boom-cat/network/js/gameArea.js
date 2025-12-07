@@ -10,3 +10,4 @@ export function updateGameArea() {
     gameState.gameArea.height = gameState.gameArea.bottom - gameState.gameArea.top;
 }
 
+

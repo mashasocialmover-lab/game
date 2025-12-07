@@ -40,3 +40,4 @@ export function drawHpBar(ctx, hp, maxHp) {
     ctx.strokeRect(-w/2, y, w, h);
 }
 
+

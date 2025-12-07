@@ -88,3 +88,4 @@ canvas { display: block; }
 .pause-btn.paused { background-color: #f1c40f; color: black; animation: pulse 1s infinite; }
 @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
 
+
