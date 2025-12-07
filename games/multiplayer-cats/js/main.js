@@ -1,0 +1,246 @@
+// Точка входа сетевой игры
+import { gameState } from './gameState.js';
+import { networkState, initNetworkState } from './networkState.js';
+import { updateGameArea } from './gameArea.js';
+import { init, startGameLoop, stopGame, setupEventListeners, spawnMyPlayer } from './game.js';
+import { createRoom, joinRoom, getRoomPlayers, subscribeToRoom, startGame as startRoomGame, leaveRoom } from './roomManager.js';
+import { supabase } from './supabaseClient.js';
+
+// Инициализация сетевого состояния
+initNetworkState();
+
+// Установка имени игрока в поле ввода
+if (document.getElementById('playerNameInput')) {
+    document.getElementById('playerNameInput').value = networkState.playerName;
+}
+
+// Инициализация canvas
+gameState.canvas = document.getElementById('gameCanvas');
+gameState.ctx = gameState.canvas.getContext('2d');
+gameState.canvas.width = window.innerWidth;
+gameState.canvas.height = window.innerHeight;
+
+// Инициализация игровой области
+updateGameArea();
+
+// Настройка обработчиков событий
+setupEventListeners();
+
+// Функции UI
+function showScreen(screenId) {
+    document.getElementById('menuScreen').style.display = 'none';
+    document.getElementById('characterScreen').style.display = 'none';
+    document.getElementById('roomScreen').style.display = 'none';
+    document.getElementById('gameScreen').style.display = 'none';
+    
+    if (screenId) {
+        document.getElementById(screenId).style.display = 'flex';
+    }
+}
+
+function updatePlayersList() {
+    const list = document.getElementById('playersList');
+    if (!list) return;
+    
+    list.innerHTML = '';
+    networkState.connectedPlayers.forEach(player => {
+        const li = document.createElement('li');
+        li.textContent = player.player_name + (player.is_host ? ' (Хост)' : '');
+        list.appendChild(li);
+    });
+    
+    // Обновляем счетчик в игре
+    const countEl = document.getElementById('playersCount');
+    if (countEl) {
+        countEl.textContent = gameState.players.size;
+    }
+}
+
+function updateConnectionStatus() {
+    const statusEl = document.getElementById('connectionStatus');
+    if (!statusEl) return;
+    
+    if (networkState.isConnected) {
+        statusEl.textContent = '🟢 Подключено';
+        statusEl.style.color = '#4caf50';
+    } else {
+        statusEl.textContent = '🔴 Отключено';
+        statusEl.style.color = '#f44336';
+    }
+}
+
+// Создание комнаты
+window.createRoom = async function() {
+    const roomName = document.getElementById('roomNameInput')?.value || 'Моя комната';
+    const playerName = document.getElementById('playerNameInput')?.value?.trim() || networkState.playerName;
+    
+    if (playerName) {
+        networkState.playerName = playerName;
+        localStorage.setItem('playerName', playerName);
+    }
+    
+    const result = await createRoom(roomName);
+    if (result.success) {
+        await getRoomPlayers(result.room.id);
+        updatePlayersList();
+        document.getElementById('roomCode').textContent = result.room.code;
+        document.getElementById('startGameBtn').style.display = networkState.isHost ? 'block' : 'none';
+        showScreen('characterScreen');
+        updateConnectionStatus();
+        
+        // Подписываемся на изменения
+        subscribeToRoom(result.room.id, async (payload) => {
+            if (payload.table === 'players') {
+                await getRoomPlayers(result.room.id);
+                updatePlayersList();
+            }
+            if (payload.table === 'rooms' && payload.new) {
+                if (payload.new.status === 'playing' && networkState.currentRoom?.status !== 'playing') {
+                    networkState.currentRoom.status = 'playing';
+                    if (!networkState.selectedCharacter) {
+                        // Если еще не выбрали персонажа, выбираем автоматически
+                        selectCharacter('cat');
+                        readyToPlay();
+                    } else {
+                        startGame();
+                        showScreen('gameScreen');
+                    }
+                }
+            }
+        });
+    } else {
+        alert('Ошибка создания комнаты: ' + result.error);
+    }
+};
+
+// Присоединение к комнате
+window.joinRoom = async function() {
+    const roomCode = document.getElementById('roomCodeInput')?.value;
+    const playerName = document.getElementById('playerNameInput')?.value?.trim() || networkState.playerName;
+    
+    if (!roomCode) {
+        alert('Введите код комнаты!');
+        return;
+    }
+    
+    if (playerName) {
+        networkState.playerName = playerName;
+        localStorage.setItem('playerName', playerName);
+    }
+    
+    const result = await joinRoom(roomCode);
+    if (result.success) {
+        await getRoomPlayers(result.room.id);
+        updatePlayersList();
+        document.getElementById('roomCode').textContent = result.room.code;
+        document.getElementById('startGameBtn').style.display = networkState.isHost ? 'block' : 'none';
+        showScreen('characterScreen');
+        updateConnectionStatus();
+        
+        // Проверяем статус комнаты
+        if (result.room.status === 'playing') {
+            // Игра уже началась
+            if (!networkState.selectedCharacter) {
+                selectCharacter('cat');
+                readyToPlay();
+            }
+        } else {
+            // Подписываемся на изменения
+            subscribeToRoom(result.room.id, async (payload) => {
+                if (payload.table === 'players') {
+                    await getRoomPlayers(result.room.id);
+                    updatePlayersList();
+                }
+                if (payload.table === 'rooms' && payload.new) {
+                    if (payload.new.status === 'playing' && networkState.currentRoom?.status !== 'playing') {
+                        networkState.currentRoom.status = 'playing';
+                        if (!networkState.selectedCharacter) {
+                            selectCharacter('cat');
+                            readyToPlay();
+                        } else {
+                            startGameLoop();
+                            showScreen('gameScreen');
+                        }
+                    }
+                }
+            });
+        }
+    } else {
+        alert('Ошибка присоединения: ' + result.error);
+    }
+};
+
+// Выбор персонажа
+let selectedCharacterType = null;
+window.selectCharacter = function(type) {
+    selectedCharacterType = type;
+    document.getElementById('catOption').classList.remove('selected');
+    document.getElementById('dogOption').classList.remove('selected');
+    document.getElementById(type + 'Option').classList.add('selected');
+    document.getElementById('readyBtn').style.display = 'block';
+};
+
+// Готов играть
+window.readyToPlay = function() {
+    if (!selectedCharacterType) {
+        alert('Выберите персонажа!');
+        return;
+    }
+    
+    if (!networkState.currentRoom) {
+        alert('Вы не в комнате!');
+        return;
+    }
+    
+    // Спавним персонажа
+    spawnMyPlayer(selectedCharacterType);
+    
+        // Если игра уже началась, сразу переходим к игре
+        if (networkState.currentRoom.status === 'playing') {
+            startGameLoop();
+            showScreen('gameScreen');
+        } else {
+            // Показываем экран комнаты и ждем старта
+            showScreen('roomScreen');
+        }
+};
+
+// Начать игру (только для хоста)
+window.startGame = async function() {
+    if (!networkState.isHost) {
+        alert('Только хост может начать игру!');
+        return;
+    }
+    
+    const success = await startRoomGame();
+    if (success) {
+        // Если еще не выбрали персонажа, выбираем автоматически
+        if (!networkState.selectedCharacter) {
+            selectCharacter('cat');
+            spawnMyPlayer('cat');
+        }
+        startGameLoop();
+        showScreen('gameScreen');
+    }
+};
+
+// Покинуть комнату
+window.leaveRoom = async function() {
+    await leaveRoom();
+    stopGame();
+    showScreen('menuScreen');
+    selectedCharacterType = null;
+    networkState.selectedCharacter = null;
+    networkState.myPlayerId = null;
+};
+
+// Инициализация игры
+init();
+
+// Обновление списка игроков каждую секунду (для отладки)
+setInterval(() => {
+    if (gameState.isPlaying) {
+        updatePlayersList();
+    }
+}, 1000);
+

@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Сетевая игра - Multiplayer Cats</title>
+    <link rel="stylesheet" href="style/main.css">
+    <script src="https://cdn.jsdelivr.net/npm/simple-peer@9.11.1/simplepeer.min.js"></script>
+</head>
+<body>
+
+<!-- Экран меню -->
+<div id="menuScreen" class="screen">
+    <div class="menu-container">
+        <h1>🐱🐶 Сетевая игра</h1>
+        <div style="margin-bottom: 20px;">
+            <div style="display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 10px;">
+                <span>Ваше имя:</span>
+                <input type="text" id="playerNameInput" style="padding: 8px; border: 2px solid #555; border-radius: 5px; font-size: 16px; background: rgba(255,255,255,0.9); max-width: 200px;" maxlength="20">
+            </div>
+        </div>
+        <div class="menu-buttons">
+            <div class="menu-section">
+                <h2>Создать комнату</h2>
+                <input type="text" id="roomNameInput" placeholder="Название комнаты" maxlength="30">
+                <button class="btn btn-primary" onclick="createRoom()">Создать</button>
+            </div>
+            <div class="menu-section">
+                <h2>Присоединиться</h2>
+                <input type="text" id="roomCodeInput" placeholder="Код комнаты" maxlength="6" style="text-transform: uppercase;">
+                <button class="btn btn-primary" onclick="joinRoom()">Присоединиться</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Экран выбора персонажа -->
+<div id="characterScreen" class="screen" style="display: none;">
+    <div class="character-selector">
+        <h2>Выберите персонажа</h2>
+        <div class="character-options">
+            <div class="character-option" onclick="selectCharacter('cat')" id="catOption">
+                <div class="icon">🐱</div>
+                <div class="name">Кот</div>
+            </div>
+            <div class="character-option" onclick="selectCharacter('dog')" id="dogOption">
+                <div class="icon">🐶</div>
+                <div class="name">Собака</div>
+            </div>
+        </div>
+        <button class="btn btn-success" id="readyBtn" onclick="readyToPlay()" style="display: none; margin-top: 20px;">Готов играть</button>
+    </div>
+</div>
+
+<!-- Экран комнаты -->
+<div id="roomScreen" class="screen" style="display: none;">
+    <div class="room-container">
+        <h2>Код комнаты:</h2>
+        <div class="room-code" id="roomCode"></div>
+        <div class="status" id="connectionStatus">🔴 Отключено</div>
+        <div>
+            <h3>Игроки:</h3>
+            <ul class="players-list" id="playersList"></ul>
+        </div>
+        <div style="margin-top: 20px;">
+            <button class="btn btn-success" id="startGameBtn" onclick="startGame()" style="display: none;">Начать игру</button>
+            <button class="btn btn-danger" onclick="leaveRoom()">Покинуть комнату</button>
+        </div>
+    </div>
+</div>
+
+<!-- Экран игры -->
+<div id="gameScreen" class="screen" style="display: none;">
+    <canvas id="gameCanvas"></canvas>
+    <div style="position: absolute; top: 20px; left: 20px; background: rgba(0,0,0,0.7); padding: 10px; border-radius: 5px;">
+        <div>Игроков: <span id="playersCount">0</span></div>
+        <div style="margin-top: 10px;">
+            <button class="btn btn-danger" onclick="leaveRoom()">Выйти</button>
+        </div>
+    </div>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
+
