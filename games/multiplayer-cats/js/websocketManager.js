@@ -1,0 +1,262 @@
+// Менеджер WebSocket соединений через PeerJS
+import { networkState } from './networkState.js';
+import { supabase } from './supabaseClient.js';
+
+let peer = null;
+let connections = new Map(); // Map<playerId, DataConnection>
+let syncCallbacks = [];
+
+// Инициализация PeerJS
+export function initPeerJS(roomId) {
+    console.log('🔌 Инициализация PeerJS для комнаты:', roomId);
+    console.log('👤 Используем playerId как peerId:', networkState.playerId);
+    
+    return new Promise((resolve, reject) => {
+        if (peer) {
+            console.log('🔄 Уничтожаем существующий peer');
+            peer.destroy();
+        }
+        
+        // Проверяем что Peer доступен глобально
+        if (typeof Peer === 'undefined') {
+            const error = new Error('PeerJS не загружен! Проверьте подключение библиотеки.');
+            console.error('❌', error.message);
+            reject(error);
+            return;
+        }
+        
+        console.log('📡 Создание Peer с ID:', networkState.playerId);
+        
+        // Используем playerId как peerId для PeerJS
+        peer = new Peer(networkState.playerId, {
+            host: '0.peerjs.com',
+            port: 443,
+            path: '/',
+            secure: true,
+            config: {
+                iceServers: [
+                    { urls: 'stun:stun.l.google.com:19302' },
+                    { urls: 'stun:stun1.l.google.com:19302' }
+                ]
+            }
+        });
+        
+        peer.on('open', (id) => {
+            console.log('✅ PeerJS подключен, ID:', id);
+            console.log('📊 Статус peer:', peer.open ? 'открыт' : 'закрыт');
+            resolve(id);
+        });
+        
+        peer.on('error', (error) => {
+            console.error('❌ PeerJS ошибка:', error);
+            console.error('Тип ошибки:', error.type);
+            console.error('Сообщение:', error.message);
+            reject(error);
+        });
+        
+        // Ожидаем входящие соединения
+        peer.on('connection', (conn) => {
+            console.log('📥 Входящее соединение от:', conn.peer);
+            console.log('📊 Соединение открыто:', conn.open);
+            setupConnection(conn, conn.peer);
+        });
+        
+        console.log('⏳ Ожидание подключения PeerJS...');
+    });
+}
+
+// Установка соединения с другим игроком
+export function connectToPlayer(targetPlayerId) {
+    if (!peer || !peer.open) {
+        console.error('Peer не готов');
+        return;
+    }
+    
+    if (connections.has(targetPlayerId)) {
+        console.log('Соединение уже существует с:', targetPlayerId);
+        return;
+    }
+    
+    console.log('🔗 Подключение к игроку:', targetPlayerId);
+    const conn = peer.connect(targetPlayerId, {
+        reliable: true
+    });
+    
+    setupConnection(conn, targetPlayerId);
+}
+
+// Настройка соединения
+function setupConnection(conn, playerId) {
+    conn.on('open', () => {
+        console.log('✅ Соединение установлено с:', playerId);
+        connections.set(playerId, conn);
+        
+        // Запрашиваем информацию о других игроках
+        setTimeout(() => {
+            import('./syncManager.js').then(({ requestOtherPlayersSpawn }) => {
+                requestOtherPlayersSpawn();
+            });
+        }, 500);
+    });
+    
+    conn.on('data', (data) => {
+        try {
+            const event = typeof data === 'string' ? JSON.parse(data) : data;
+            if (event.player_id !== networkState.playerId) {
+                console.log('📨 Получено событие от', playerId, ':', event.event_type);
+                handleGameEvent(event);
+            }
+        } catch (error) {
+            console.error('Ошибка обработки данных:', error);
+        }
+    });
+    
+    conn.on('close', () => {
+        console.log('🔌 Соединение закрыто с:', playerId);
+        connections.delete(playerId);
+    });
+    
+    conn.on('error', (error) => {
+        console.error('Ошибка соединения с', playerId, ':', error);
+    });
+}
+
+// Обработка игрового события
+function handleGameEvent(event) {
+    syncCallbacks.forEach(callback => {
+        try {
+            callback(event);
+        } catch (error) {
+            console.error('Ошибка в callback:', error);
+        }
+    });
+}
+
+// Отправка игрового события
+export function sendGameEvent(eventType, eventData) {
+    if (!peer) {
+        console.warn('⚠️ Peer не создан');
+        return 0;
+    }
+    
+    if (!peer.open) {
+        console.warn('⚠️ Peer не открыт, статус:', peer.destroyed ? 'уничтожен' : 'закрыт');
+        return 0;
+    }
+    
+    const event = {
+        player_id: networkState.playerId,
+        event_type: eventType,
+        event_data: eventData,
+        timestamp: Date.now()
+    };
+    
+    let sentCount = 0;
+    const totalConnections = connections.size;
+    
+    console.log(`📤 Отправка события ${eventType}, соединений: ${totalConnections}`);
+    
+    if (totalConnections === 0) {
+        console.warn('⚠️ Нет активных соединений для отправки события');
+    }
+    
+    connections.forEach((conn, playerId) => {
+        if (conn.open) {
+            try {
+                conn.send(event);
+                sentCount++;
+                console.log(`✅ Отправлено к ${playerId}`);
+            } catch (error) {
+                console.error(`❌ Ошибка отправки к ${playerId}:`, error);
+            }
+        } else {
+            console.warn(`⚠️ Соединение с ${playerId} не открыто`);
+        }
+    });
+    
+    if (sentCount === 0 && totalConnections > 0) {
+        console.warn(`⚠️ Не удалось отправить событие никому из ${totalConnections} соединений`);
+    }
+    
+    return sentCount;
+}
+
+// Подписка на события
+export function onGameEvent(callback) {
+    syncCallbacks.push(callback);
+    return () => {
+        syncCallbacks = syncCallbacks.filter(cb => cb !== callback);
+    };
+}
+
+// Подключение ко всем игрокам в комнате
+export async function connectToAllPlayers(players) {
+    if (!networkState.currentRoom) {
+        console.error('❌ Нет текущей комнаты');
+        return;
+    }
+    
+    console.log('🔗 Подключение ко всем игрокам, всего:', players.length);
+    console.log('👤 Игроки:', players.map(p => p.player_id + (p.is_host ? ' (хост)' : '')));
+    
+    // Ждем пока PeerJS подключится
+    if (!peer || !peer.open) {
+        console.log('⏳ PeerJS не готов, инициализируем...');
+        try {
+            await initPeerJS(networkState.currentRoom.id);
+            console.log('✅ PeerJS готов');
+        } catch (error) {
+            console.error('❌ Не удалось инициализировать PeerJS:', error);
+            return;
+        }
+    }
+    
+    // Хост подключается ко всем
+    if (networkState.isHost) {
+        console.log('🏠 Хост: подключаемся ко всем игрокам');
+        for (const player of players) {
+            if (player.player_id !== networkState.playerId) {
+                const delay = Math.random() * 500;
+                console.log(`⏱️ Подключение к ${player.player_id} через ${delay.toFixed(0)}мс`);
+                setTimeout(() => {
+                    connectToPlayer(player.player_id);
+                }, delay);
+            }
+        }
+    } else {
+        // Клиенты подключаются только к хосту
+        const host = players.find(p => p.is_host);
+        if (host && host.player_id !== networkState.playerId) {
+            console.log('👤 Клиент: подключаемся к хосту', host.player_id);
+            setTimeout(() => {
+                connectToPlayer(host.player_id);
+            }, 200);
+        } else {
+            console.warn('⚠️ Хост не найден или это мы сами');
+        }
+    }
+}
+
+// Остановка всех соединений
+export function stopPeerJS() {
+    connections.forEach((conn) => {
+        conn.close();
+    });
+    connections.clear();
+    syncCallbacks = [];
+    
+    if (peer) {
+        peer.destroy();
+        peer = null;
+    }
+}
+
+// Получение статуса соединений
+export function getConnectionStatus() {
+    let connected = 0;
+    connections.forEach((conn) => {
+        if (conn.open) connected++;
+    });
+    return { total: connections.size, connected };
+}
+

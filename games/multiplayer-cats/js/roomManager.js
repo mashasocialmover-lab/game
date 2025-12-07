@@ -2,7 +2,7 @@
 import { supabase } from './supabaseClient.js';
 import { networkState } from './networkState.js';
 import { MAX_PLAYERS } from './config.js';
-import { connectToAllPlayers } from './webrtcManager.js';
+import { connectToAllPlayers } from './websocketManager.js';
 
 // Генерация кода комнаты
 function generateRoomCode() {

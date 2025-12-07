@@ -1,118 +1,45 @@
-// Менеджер синхронизации через Supabase Realtime
+// Менеджер синхронизации через PeerJS WebRTC
 import { networkState } from './networkState.js';
-import { supabase } from './supabaseClient.js';
-import { SYNC_INTERVAL, BATCH_INTERVAL, MAX_BATCH_SIZE } from './config.js';
+import { sendGameEvent, onGameEvent, initPeerJS, connectToAllPlayers } from './websocketManager.js';
+import { SYNC_INTERVAL } from './config.js';
 
 let lastSyncTime = 0;
 let syncCallbacks = [];
-let gameChannel = null;
-let eventBatch = [];
-let lastBatchTime = 0;
 
 // Инициализация синхронизации
 export function initSync(roomId) {
-    setupSupabaseRealtimeSync(roomId);
-}
-
-// Настройка синхронизации через Supabase Realtime
-function setupSupabaseRealtimeSync(roomId) {
-    if (gameChannel) {
-        supabase.removeChannel(gameChannel);
-    }
+    console.log('🚀 Инициализация синхронизации для комнаты:', roomId);
+    console.log('👤 Наш playerId:', networkState.playerId);
     
-    gameChannel = supabase
-        .channel('game_sync_' + roomId)
-        .on('broadcast', {
-            event: 'game_event'
-        }, (payload) => {
-            const event = payload.payload;
-            if (event && event.player_id !== networkState.playerId) {
-                console.log('✅ Получено событие:', event.event_type, 'от', event.player_id);
-                handleGameEvent(event);
-            }
-        })
-        .subscribe((status) => {
-            console.log('📡 Game sync channel status:', status);
-            if (status === 'SUBSCRIBED') {
-                console.log('✅ Подписка на синхронизацию установлена');
-            }
-        });
-}
-
-// Отправка события через Supabase Realtime (с батчингом)
-function sendGameEvent(eventType, eventData) {
-    if (!gameChannel) {
-        console.warn('Game channel не готов');
-        return false;
-    }
-    
-    const event = {
-        player_id: networkState.playerId,
-        event_type: eventType,
-        event_data: eventData,
-        timestamp: Date.now()
-    };
-    
-    // Важные события (спавн, запросы) отправляем сразу
-    if (eventType === 'player_spawn' || eventType === 'request_spawn') {
-        gameChannel.send({
-            type: 'broadcast',
-            event: 'game_event',
-            payload: event
-        }).then(() => {
-            console.log('📤 Отправлено событие:', eventType);
-        }).catch((error) => {
-            console.error('❌ Ошибка отправки события:', error);
-        });
-        return true;
-    }
-    
-    // Позиции батчим для снижения нагрузки
-    eventBatch.push(event);
-    
-    const currentTime = Date.now();
-    const shouldFlush = 
-        eventBatch.length >= MAX_BATCH_SIZE || 
-        (currentTime - lastBatchTime >= BATCH_INTERVAL);
-    
-    if (shouldFlush) {
-        flushBatch();
-    }
-    
-    return true;
-}
-
-// Отправка батча событий
-function flushBatch() {
-    if (eventBatch.length === 0 || !gameChannel) return;
-    
-    // Отправляем все события одним батчем
-    const batch = [...eventBatch];
-    eventBatch = [];
-    lastBatchTime = Date.now();
-    
-    // Отправляем последнее событие (самое актуальное)
-    const lastEvent = batch[batch.length - 1];
-    gameChannel.send({
-        type: 'broadcast',
-        event: 'game_event',
-        payload: lastEvent
+    // Инициализируем PeerJS
+    initPeerJS(roomId).then((peerId) => {
+        console.log('✅ PeerJS инициализирован, peerId:', peerId);
     }).catch((error) => {
-        console.error('❌ Ошибка отправки батча:', error);
+        console.error('❌ Ошибка инициализации PeerJS:', error);
+        console.error('Детали ошибки:', error.message, error.type);
     });
+    
+    // Подписываемся на события через PeerJS
+    onGameEvent(handleGameEvent);
+    console.log('📝 Подписка на игровые события установлена');
 }
 
-// Обработка игрового события от другого игрока
+// Обработка игрового события
 function handleGameEvent(event) {
     // Игнорируем свои события
-    if (event.player_id === networkState.playerId) return;
+    if (event.player_id === networkState.playerId) {
+        console.log('⚠️ Игнорируем свое событие:', event.event_type);
+        return;
+    }
+
+    console.log('🔄 Обработка события:', event.event_type, 'от', event.player_id);
 
     // Вызываем все зарегистрированные колбэки
     syncCallbacks.forEach(callback => {
         try {
             callback(event);
         } catch (error) {
-            console.error('Ошибка в callback синхронизации:', error);
+            console.error('❌ Ошибка в callback синхронизации:', error);
         }
     });
 }
@@ -136,18 +63,22 @@ export function syncPlayerPosition(playerId, x, y, vx, vy) {
     
     lastSyncTime = currentTime;
     
-    sendGameEvent('player_move', {
+    const sent = sendGameEvent('player_move', {
         player_id: playerId,
         x: x,
         y: y,
         vx: vx,
         vy: vy
     });
+    
+    if (sent === 0) {
+        console.log('⚠️ Не удалось отправить позицию, соединений:', sent);
+    }
 }
 
 // Синхронизация спавна игрока
 export function syncPlayerSpawn(playerId, playerName, x, y, characterType) {
-    console.log('📤 Отправка спавна:', playerName, x, y, characterType);
+    console.log('📤 Отправка спавна через PeerJS:', playerName, x, y, characterType);
     sendGameEvent('player_spawn', {
         player_id: playerId,
         player_name: playerName,
@@ -159,25 +90,15 @@ export function syncPlayerSpawn(playerId, playerName, x, y, characterType) {
 
 // Запрос спавна других игроков
 export function requestOtherPlayersSpawn() {
-    console.log('📤 Запрос информации о других игроках');
+    console.log('📤 Запрос информации о других игроках через PeerJS');
     sendGameEvent('request_spawn', {});
 }
 
 // Остановка синхронизации
 export function stopSync() {
-    // Отправляем оставшиеся события перед остановкой
-    flushBatch();
-    
     syncCallbacks = [];
-    if (gameChannel) {
-        supabase.removeChannel(gameChannel);
-        gameChannel = null;
-    }
-    eventBatch = [];
-}
-
-// Принудительная отправка батча (для использования при закрытии страницы)
-export function flushPendingEvents() {
-    flushBatch();
+    import('./websocketManager.js').then(({ stopPeerJS }) => {
+        stopPeerJS();
+    });
 }
 

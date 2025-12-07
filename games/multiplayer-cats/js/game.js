@@ -39,16 +39,19 @@ function subscribeToRoomChanges() {
 
 // Настройка обработчиков синхронизации
 function setupSyncHandlers() {
+    console.log('🔧 Настройка обработчиков синхронизации');
     onGameEvent((event) => {
-        console.log('Получено игровое событие:', event);
+        console.log('📨 Получено игровое событие:', event.event_type, 'от', event.player_id);
         if (event.event_type === 'player_move') {
             handleRemotePlayerMove(event.event_data);
         } else if (event.event_type === 'player_spawn') {
             handleRemotePlayerSpawn(event.event_data);
         } else if (event.event_type === 'request_spawn') {
+            console.log('📥 Запрос на отправку информации о нашем персонаже');
             // Запрос на отправку информации о нашем персонаже
             if (networkState.myPlayerId && gameState.players.has(networkState.myPlayerId)) {
                 const myPlayer = gameState.players.get(networkState.myPlayerId);
+                console.log('📤 Отправляем информацию о нашем персонаже');
                 syncPlayerSpawn(
                     networkState.myPlayerId,
                     networkState.playerName,
@@ -56,9 +59,14 @@ function setupSyncHandlers() {
                     myPlayer.y,
                     networkState.selectedCharacter
                 );
+            } else {
+                console.warn('⚠️ Наш персонаж еще не создан, не можем отправить информацию');
             }
+        } else {
+            console.log('⚠️ Неизвестный тип события:', event.event_type);
         }
     });
+    console.log('✅ Обработчики синхронизации настроены');
 }
 
 // Обработка движения удаленного игрока
