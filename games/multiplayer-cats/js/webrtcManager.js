@@ -155,6 +155,21 @@ function setupPeer(peer, targetPlayerId) {
     peer.on('data', (data) => {
         try {
             const event = JSON.parse(data.toString());
+            console.log('Получено событие от', targetPlayerId, ':', event.event_type);
+            
+            // Если хост, ретранслируем сообщение всем остальным клиентам
+            if (networkState.isHost && event.player_id !== networkState.playerId) {
+                peers.forEach((otherPeer, otherPlayerId) => {
+                    if (otherPlayerId !== targetPlayerId && otherPeer.connected) {
+                        try {
+                            otherPeer.send(JSON.stringify(event));
+                        } catch (error) {
+                            console.error('Ошибка ретрансляции:', error);
+                        }
+                    }
+                });
+            }
+            
             // Вызываем все зарегистрированные колбэки
             syncCallbacks.forEach(callback => {
                 try {
@@ -213,16 +228,29 @@ export function sendGameEventViaWebRTC(eventType, eventData) {
         timestamp: Date.now()
     };
 
+    let sentCount = 0;
+    
     // Отправляем всем подключенным пирам
     peers.forEach((peer, playerId) => {
         if (peer.connected) {
             try {
                 peer.send(JSON.stringify(event));
+                sentCount++;
             } catch (error) {
                 console.error('Ошибка отправки через WebRTC:', error);
             }
+        } else {
+            console.log('Peer не подключен:', playerId);
         }
     });
+    
+    if (sentCount === 0 && peers.size > 0) {
+        console.warn('Не удалось отправить событие никому из', peers.size, 'пиров');
+    }
+    
+    // Если хост, ретранслируем сообщение всем остальным клиентам
+    // (клиенты уже получат напрямую, но на всякий случай)
+    return sentCount;
 }
 
 // Подписка на события через WebRTC

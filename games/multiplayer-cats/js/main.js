@@ -9,9 +9,23 @@ import { supabase } from './supabaseClient.js';
 // Инициализация сетевого состояния
 initNetworkState();
 
+// Проверка URL параметров для автоматического присоединения
+let urlParams = new URLSearchParams(window.location.search);
+let roomCodeFromUrl = urlParams.get('room');
+
 // Установка имени игрока в поле ввода
 if (document.getElementById('playerNameInput')) {
     document.getElementById('playerNameInput').value = networkState.playerName;
+}
+
+// Если есть код комнаты в URL - автоматически заполняем поле
+if (roomCodeFromUrl) {
+    setTimeout(() => {
+        const codeInput = document.getElementById('roomCodeInput');
+        if (codeInput) {
+            codeInput.value = roomCodeFromUrl.toUpperCase();
+        }
+    }, 100);
 }
 
 // Инициализация canvas
@@ -49,10 +63,10 @@ function updatePlayersList() {
         list.appendChild(li);
     });
     
-    // Обновляем счетчик в игре
+    // Обновляем счетчик в игре - показываем количество игроков в комнате
     const countEl = document.getElementById('playersCount');
     if (countEl) {
-        countEl.textContent = gameState.players.size;
+        countEl.textContent = networkState.connectedPlayers.length;
     }
 }
 
@@ -85,6 +99,10 @@ window.createRoom = async function() {
         updatePlayersList();
         document.getElementById('roomCode').textContent = result.room.code;
         document.getElementById('startGameBtn').style.display = networkState.isHost ? 'block' : 'none';
+        
+        // Обновляем URL
+        window.history.pushState({}, '', window.location.pathname + '?room=' + result.room.code);
+        
         showScreen('characterScreen');
         updateConnectionStatus();
         
@@ -134,6 +152,10 @@ window.joinRoom = async function() {
         updatePlayersList();
         document.getElementById('roomCode').textContent = result.room.code;
         document.getElementById('startGameBtn').style.display = networkState.isHost ? 'block' : 'none';
+        
+        // Обновляем URL
+        window.history.pushState({}, '', window.location.pathname + '?room=' + result.room.code);
+        
         showScreen('characterScreen');
         updateConnectionStatus();
         
