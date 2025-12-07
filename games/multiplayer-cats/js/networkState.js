@@ -10,11 +10,12 @@ export const networkState = {
     selectedCharacter: null // 'cat' или 'dog'
 };
 
-// Генерация уникального ID игрока
+// Генерация уникального ID игрока (короткий для PeerJS)
 export function generatePlayerId() {
     let playerId = localStorage.getItem('playerId');
     if (!playerId) {
-        playerId = 'player_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        // PeerJS требует короткие ID, используем только случайную строку
+        playerId = Math.random().toString(36).substr(2, 9) + Date.now().toString(36).substr(-6);
         localStorage.setItem('playerId', playerId);
     }
     return playerId;

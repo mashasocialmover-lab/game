@@ -93,8 +93,10 @@ window.createRoom = async function() {
         localStorage.setItem('playerName', playerName);
     }
     
+    console.log('🏠 Создание комнаты:', roomName);
     const result = await createRoom(roomName);
     if (result.success) {
+        console.log('✅ Комната создана:', result.room.code);
         await getRoomPlayers(result.room.id);
         updatePlayersList();
         document.getElementById('roomCode').textContent = result.room.code;
@@ -102,6 +104,14 @@ window.createRoom = async function() {
         
         // Обновляем URL
         window.history.pushState({}, '', window.location.pathname + '?room=' + result.room.code);
+        
+        // Инициализируем игру если еще не инициализирована
+        if (!gameState.canvas) {
+            console.log('🎮 Инициализируем игру после создания комнаты');
+            import('./game.js').then(({ init }) => {
+                init();
+            });
+        }
         
         showScreen('characterScreen');
         updateConnectionStatus();
@@ -146,8 +156,10 @@ window.joinRoom = async function() {
         localStorage.setItem('playerName', playerName);
     }
     
+    console.log('🔗 Присоединение к комнате:', roomCode);
     const result = await joinRoom(roomCode);
     if (result.success) {
+        console.log('✅ Присоединились к комнате:', result.room.code);
         await getRoomPlayers(result.room.id);
         updatePlayersList();
         document.getElementById('roomCode').textContent = result.room.code;
@@ -155,6 +167,14 @@ window.joinRoom = async function() {
         
         // Обновляем URL
         window.history.pushState({}, '', window.location.pathname + '?room=' + result.room.code);
+        
+        // Инициализируем игру если еще не инициализирована
+        if (!gameState.canvas) {
+            console.log('🎮 Инициализируем игру после присоединения');
+            import('./game.js').then(({ init }) => {
+                init();
+            });
+        }
         
         showScreen('characterScreen');
         updateConnectionStatus();
@@ -347,8 +367,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// Инициализация игры
+// Инициализация игры (базовая, без комнаты)
+console.log('🚀 Запуск приложения');
 init();
+console.log('✅ Приложение инициализировано');
 
 // Обновление списка игроков каждую секунду (для отладки)
 setInterval(() => {
