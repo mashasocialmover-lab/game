@@ -12,61 +12,80 @@ export function initPeerJS(roomId) {
     console.log('👤 Используем playerId как peerId:', networkState.playerId);
     
     return new Promise((resolve, reject) => {
-        if (peer) {
-            console.log('🔄 Уничтожаем существующий peer');
-            peer.destroy();
-        }
-        
         // Проверяем что Peer доступен глобально
         const PeerToUse = window.Peer;
         if (!PeerToUse) {
-            const error = new Error('PeerJS не загружен! Проверьте подключение библиотеки.');
-            console.error('❌', error.message);
-            console.error('Проверка window.Peer:', typeof window.Peer);
+            console.error('❌ PeerJS не загружен! Проверка window.Peer:', typeof window.Peer);
             console.error('Проверка window:', Object.keys(window).filter(k => k.toLowerCase().includes('peer')));
-            reject(error);
+            
+            // Пытаемся подождать немного и проверить снова
+            setTimeout(() => {
+                const PeerToUseRetry = window.Peer;
+                if (!PeerToUseRetry) {
+                    const error = new Error('PeerJS не загружен! Проверьте подключение библиотеки в index.html');
+                    console.error('❌', error.message);
+                    reject(error);
+                } else {
+                    console.log('✅ PeerJS загружен после задержки');
+                    createPeer(PeerToUseRetry, resolve, reject);
+                }
+            }, 500);
             return;
         }
         
-        console.log('📡 Создание Peer с ID:', networkState.playerId);
-        console.log('📚 PeerJS класс найден:', typeof PeerToUse);
-        
-        // Используем playerId как peerId для PeerJS
-        peer = new PeerToUse(networkState.playerId, {
-            host: '0.peerjs.com',
-            port: 443,
-            path: '/',
-            secure: true,
-            config: {
-                iceServers: [
-                    { urls: 'stun:stun.l.google.com:19302' },
-                    { urls: 'stun:stun1.l.google.com:19302' }
-                ]
-            }
-        });
-        
-        peer.on('open', (id) => {
-            console.log('✅ PeerJS подключен, ID:', id);
-            console.log('📊 Статус peer:', peer.open ? 'открыт' : 'закрыт');
-            resolve(id);
-        });
-        
-        peer.on('error', (error) => {
-            console.error('❌ PeerJS ошибка:', error);
-            console.error('Тип ошибки:', error.type);
-            console.error('Сообщение:', error.message);
-            reject(error);
-        });
-        
-        // Ожидаем входящие соединения
-        peer.on('connection', (conn) => {
-            console.log('📥 Входящее соединение от:', conn.peer);
-            console.log('📊 Соединение открыто:', conn.open);
-            setupConnection(conn, conn.peer);
-        });
-        
-        console.log('⏳ Ожидание подключения PeerJS...');
+        createPeer(PeerToUse, resolve, reject);
     });
+}
+
+function createPeer(PeerToUse, resolve, reject) {
+    if (peer) {
+        console.log('🔄 Уничтожаем существующий peer');
+        peer.destroy();
+    }
+    
+    console.log('📡 Создание Peer с ID:', networkState.playerId);
+    console.log('📚 PeerJS класс найден:', typeof PeerToUse);
+    
+    // Используем playerId как peerId для PeerJS
+    peer = new PeerToUse(networkState.playerId, {
+        host: '0.peerjs.com',
+        port: 443,
+        path: '/',
+        secure: true,
+        config: {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' }
+            ]
+        }
+    });
+    
+    peer.on('open', (id) => {
+        console.log('✅ PeerJS подключен, ID:', id);
+        console.log('📊 Статус peer:', peer.open ? 'открыт' : 'закрыт');
+        resolve(id);
+    });
+    
+    peer.on('error', (error) => {
+        console.error('❌ PeerJS ошибка:', error);
+        console.error('Тип ошибки:', error.type);
+        console.error('Сообщение:', error.message);
+        // Не reject сразу, некоторые ошибки не критичны
+        if (error.type === 'peer-unavailable' || error.type === 'network') {
+            console.warn('⚠️ Продолжаем несмотря на ошибку');
+        } else {
+            reject(error);
+        }
+    });
+    
+    // Ожидаем входящие соединения
+    peer.on('connection', (conn) => {
+        console.log('📥 Входящее соединение от:', conn.peer);
+        console.log('📊 Соединение открыто:', conn.open);
+        setupConnection(conn, conn.peer);
+    });
+    
+    console.log('⏳ Ожидание подключения PeerJS...');
 }
 
 // Установка соединения с другим игроком

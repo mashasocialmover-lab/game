@@ -10,16 +10,20 @@ let animationFrameId = null;
 let roomSubscription = null;
 
 // Инициализация игры
-export function init() {
+export async function init() {
     console.log('🎮 Инициализация игры');
     updateGameArea();
     console.log('📐 Игровая область:', gameState.gameArea);
     
     if (networkState.currentRoom) {
         console.log('🏠 Есть комната, инициализируем синхронизацию');
-        initSync(networkState.currentRoom.id);
-        subscribeToRoomChanges();
-        setupSyncHandlers();
+        try {
+            await initSync(networkState.currentRoom.id);
+            subscribeToRoomChanges();
+            setupSyncHandlers();
+        } catch (error) {
+            console.error('❌ Ошибка инициализации синхронизации:', error);
+        }
     } else {
         console.log('ℹ️ Комнаты нет, ждем создания/присоединения');
     }

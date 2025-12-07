@@ -7,21 +7,25 @@ let lastSyncTime = 0;
 let syncCallbacks = [];
 
 // Инициализация синхронизации
-export function initSync(roomId) {
+export async function initSync(roomId) {
     console.log('🚀 Инициализация синхронизации для комнаты:', roomId);
     console.log('👤 Наш playerId:', networkState.playerId);
     
-    // Инициализируем PeerJS
-    initPeerJS(roomId).then((peerId) => {
+    try {
+        // Инициализируем PeerJS и ждем готовности
+        const peerId = await initPeerJS(roomId);
         console.log('✅ PeerJS инициализирован, peerId:', peerId);
-    }).catch((error) => {
+        
+        // Подписываемся на события через PeerJS
+        subscribeToWebSocketEvents(handleGameEvent);
+        console.log('📝 Подписка на игровые события установлена');
+        
+        return peerId;
+    } catch (error) {
         console.error('❌ Ошибка инициализации PeerJS:', error);
         console.error('Детали ошибки:', error.message, error.type);
-    });
-    
-    // Подписываемся на события через PeerJS
-    subscribeToWebSocketEvents(handleGameEvent);
-    console.log('📝 Подписка на игровые события установлена');
+        throw error;
+    }
 }
 
 // Обработка игрового события
