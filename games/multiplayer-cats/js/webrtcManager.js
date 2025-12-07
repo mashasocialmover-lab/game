@@ -15,27 +15,26 @@ export function initWebRTC(roomId) {
         supabase.removeChannel(signalingChannel);
     }
 
-    // Подписываемся на WebRTC сигналы через Supabase
+    // Используем Supabase Realtime channels напрямую для сигналинга (без таблицы)
     signalingChannel = supabase
         .channel('webrtc_signaling_' + roomId)
-        .on('postgres_changes', {
-            event: '*',
-            schema: 'public',
-            table: 'webrtc_signals',
-            filter: 'room_id=eq.' + roomId
+        .on('broadcast', {
+            event: 'webrtc_signal'
         }, async (payload) => {
             await handleSignalingMessage(payload);
         })
-        .subscribe();
+        .subscribe((status) => {
+            console.log('WebRTC signaling channel status:', status);
+        });
 
     return signalingChannel;
 }
 
 // Обработка сигнальных сообщений
 async function handleSignalingMessage(payload) {
-    if (!payload.new) return;
+    if (!payload.payload) return;
     
-    const signal = payload.new;
+    const signal = payload.payload;
     
     // Игнорируем свои сигналы
     if (signal.from_player_id === networkState.playerId) {
@@ -70,12 +69,6 @@ async function handleSignalingMessage(payload) {
                 }
             }
         }
-        
-        // Удаляем обработанный сигнал
-        await supabase
-            .from('webrtc_signals')
-            .delete()
-            .eq('id', signal.id);
     }
 }
 
@@ -193,26 +186,30 @@ function setupPeer(peer, targetPlayerId) {
     });
 }
 
-// Отправка сигнального сообщения через Supabase
+// Отправка сигнального сообщения через Supabase Realtime
 async function sendSignalingMessage(toPlayerId, signalType, signalData) {
-    if (!networkState.currentRoom) return;
+    if (!networkState.currentRoom || !signalingChannel) return;
 
     try {
-        const { error } = await supabase
-            .from('webrtc_signals')
-            .insert([
-                {
-                    room_id: networkState.currentRoom.id,
-                    from_player_id: networkState.playerId,
-                    to_player_id: toPlayerId,
-                    signal_type: signalType,
-                    signal_data: signalData,
-                    timestamp: new Date().toISOString()
-                }
-            ]);
+        const signal = {
+            room_id: networkState.currentRoom.id,
+            from_player_id: networkState.playerId,
+            to_player_id: toPlayerId,
+            signal_type: signalType,
+            signal_data: signalData,
+            timestamp: new Date().toISOString()
+        };
+        
+        const { error } = await signalingChannel.send({
+            type: 'broadcast',
+            event: 'webrtc_signal',
+            payload: signal
+        });
 
         if (error) {
             console.error('Ошибка отправки сигнала:', error);
+        } else {
+            console.log('Сигнал отправлен:', signalType, 'к', toPlayerId);
         }
     } catch (error) {
         console.error('Ошибка отправки сигнала:', error);
