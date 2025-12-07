@@ -5,7 +5,6 @@ import { updateGameArea } from './gameArea.js';
 import { Player } from './Player.js';
 import { syncPlayerPosition, syncPlayerSpawn, requestOtherPlayersSpawn, onGameEvent, initSync, stopSync } from './syncManager.js';
 import { getRoomPlayers, subscribeToRoom } from './roomManager.js';
-import { initWebRTC } from './webrtcManager.js';
 
 let animationFrameId = null;
 let roomSubscription = null;
@@ -16,7 +15,6 @@ export function init() {
     
     if (networkState.currentRoom) {
         initSync(networkState.currentRoom.id);
-        initWebRTC(networkState.currentRoom.id);
         subscribeToRoomChanges();
         setupSyncHandlers();
     }

@@ -227,6 +227,13 @@ export function sendGameEventViaWebRTC(eventType, eventData) {
 
     let sentCount = 0;
     
+    // Проверяем статус соединений
+    const status = getConnectionStatus();
+    if (status.total === 0) {
+        console.log('Нет пиров для отправки события:', eventType);
+        return 0;
+    }
+    
     // Отправляем всем подключенным пирам
     peers.forEach((peer, playerId) => {
         if (peer.connected) {
@@ -237,16 +244,20 @@ export function sendGameEventViaWebRTC(eventType, eventData) {
                 console.error('Ошибка отправки через WebRTC:', error);
             }
         } else {
-            console.log('Peer не подключен:', playerId);
+            // Не логируем каждое сообщение, только периодически
+            if (Math.random() < 0.01) {
+                console.log('Peer не подключен:', playerId, 'connected:', peer.connected);
+            }
         }
     });
     
     if (sentCount === 0 && peers.size > 0) {
-        console.warn('Не удалось отправить событие никому из', peers.size, 'пиров');
+        // Логируем только иногда, чтобы не засорять консоль
+        if (Math.random() < 0.1) {
+            console.warn('Не удалось отправить событие никому из', peers.size, 'пиров. Подключено:', status.connected);
+        }
     }
     
-    // Если хост, ретранслируем сообщение всем остальным клиентам
-    // (клиенты уже получат напрямую, но на всякий случай)
     return sentCount;
 }
 

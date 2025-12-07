@@ -1,15 +1,67 @@
-// Менеджер синхронизации
+// Менеджер синхронизации через Supabase Realtime
 import { networkState } from './networkState.js';
-import { sendGameEventViaWebRTC, onWebRTCEvent } from './webrtcManager.js';
+import { supabase } from './supabaseClient.js';
 import { SYNC_INTERVAL } from './config.js';
 
 let lastSyncTime = 0;
 let syncCallbacks = [];
+let gameChannel = null;
 
 // Инициализация синхронизации
 export function initSync(roomId) {
-    // Подписываемся на события через WebRTC
-    onWebRTCEvent(handleGameEvent);
+    setupSupabaseRealtimeSync(roomId);
+}
+
+// Настройка синхронизации через Supabase Realtime
+function setupSupabaseRealtimeSync(roomId) {
+    if (gameChannel) {
+        supabase.removeChannel(gameChannel);
+    }
+    
+    gameChannel = supabase
+        .channel('game_sync_' + roomId)
+        .on('broadcast', {
+            event: 'game_event'
+        }, (payload) => {
+            const event = payload.payload;
+            if (event && event.player_id !== networkState.playerId) {
+                console.log('✅ Получено событие:', event.event_type, 'от', event.player_id);
+                handleGameEvent(event);
+            }
+        })
+        .subscribe((status) => {
+            console.log('📡 Game sync channel status:', status);
+            if (status === 'SUBSCRIBED') {
+                console.log('✅ Подписка на синхронизацию установлена');
+            }
+        });
+}
+
+// Отправка события через Supabase Realtime
+function sendGameEvent(eventType, eventData) {
+    if (!gameChannel) {
+        console.warn('Game channel не готов');
+        return false;
+    }
+    
+    const event = {
+        player_id: networkState.playerId,
+        event_type: eventType,
+        event_data: eventData,
+        timestamp: Date.now()
+    };
+    
+    gameChannel.send({
+        type: 'broadcast',
+        event: 'game_event',
+        payload: event
+    }).then(() => {
+        console.log('📤 Отправлено событие:', eventType);
+    }).catch((error) => {
+        console.error('❌ Ошибка отправки события:', error);
+    });
+    
+    return true;
 }
 
 // Обработка игрового события от другого игрока
@@ -46,7 +98,7 @@ export function syncPlayerPosition(playerId, x, y, vx, vy) {
     
     lastSyncTime = currentTime;
     
-    sendGameEventViaWebRTC('player_move', {
+    sendGameEvent('player_move', {
         player_id: playerId,
         x: x,
         y: y,
@@ -57,7 +109,8 @@ export function syncPlayerPosition(playerId, x, y, vx, vy) {
 
 // Синхронизация спавна игрока
 export function syncPlayerSpawn(playerId, playerName, x, y, characterType) {
-    sendGameEventViaWebRTC('player_spawn', {
+    console.log('📤 Отправка спавна:', playerName, x, y, characterType);
+    sendGameEvent('player_spawn', {
         player_id: playerId,
         player_name: playerName,
         x: x,
@@ -68,11 +121,16 @@ export function syncPlayerSpawn(playerId, playerName, x, y, characterType) {
 
 // Запрос спавна других игроков
 export function requestOtherPlayersSpawn() {
-    sendGameEventViaWebRTC('request_spawn', {});
+    console.log('📤 Запрос информации о других игроках');
+    sendGameEvent('request_spawn', {});
 }
 
 // Остановка синхронизации
 export function stopSync() {
     syncCallbacks = [];
+    if (gameChannel) {
+        supabase.removeChannel(gameChannel);
+        gameChannel = null;
+    }
 }
 
