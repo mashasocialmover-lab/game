@@ -1,6 +1,6 @@
 // Менеджер синхронизации через PeerJS WebRTC
 import { networkState } from './networkState.js';
-import { sendGameEvent, onGameEvent, initPeerJS, connectToAllPlayers } from './websocketManager.js';
+import { sendGameEvent, onGameEvent as subscribeToWebSocketEvents, initPeerJS, connectToAllPlayers } from './websocketManager.js';
 import { SYNC_INTERVAL } from './config.js';
 
 let lastSyncTime = 0;
@@ -20,7 +20,7 @@ export function initSync(roomId) {
     });
     
     // Подписываемся на события через PeerJS
-    onGameEvent(handleGameEvent);
+    subscribeToWebSocketEvents(handleGameEvent);
     console.log('📝 Подписка на игровые события установлена');
 }
 
@@ -44,7 +44,7 @@ function handleGameEvent(event) {
     });
 }
 
-// Подписка на игровые события
+// Подписка на игровые события (для game.js)
 export function onGameEvent(callback) {
     syncCallbacks.push(callback);
     return () => {
